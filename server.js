@@ -1,0 +1,623 @@
+// Yituo Studio — AI 生图工作台（仅 gpt-image-2 · 仅生图）
+// 零依赖 Node 服务：静态资源 + 注册登录 + 滑块验证码 + 生图代理(api.yituohub.com)
+'use strict';
+
+const http = require('http');
+const https = require('https');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
+
+const ROOT = __dirname;
+const PUBLIC_DIR = path.join(ROOT, 'public');
+const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data');
+const IMG_DIR = path.join(DATA_DIR, 'images');
+const DB_PATH = path.join(DATA_DIR, 'db.json');
+const PORT = Number(process.env.PORT || 8100);
+const UPSTREAM_BASE = (process.env.UPSTREAM_BASE || 'https://api.yituohub.com').replace(/\/+$/, '');
+const UPSTREAM_KEY = process.env.UPSTREAM_KEY || process.env.YITUOHUB_API_KEY || ''; // 兜底密钥（可选）
+const KEY_URL = 'https://api.yituohub.com/keys';
+const MODELS = ['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'];
+const WORK_TTL_MS = 7 * 24 * 3600e3; // 作品与图片保存 7 天
+const MAX_CONCURRENT_PER_USER = 2;
+
+fs.mkdirSync(IMG_DIR, { recursive: true });
+const SHOWCASE_DIR = path.join(DATA_DIR, 'showcase');
+fs.mkdirSync(SHOWCASE_DIR, { recursive: true });
+
+/* ---------------- 首页作品同步（经 Junli Studio 授权） ---------------- */
+const SHOWCASE_URL = process.env.SHOWCASE_URL || 'https://img.junliai.org/admin/api/showcase';
+const SHOWCASE_JSON = path.join(DATA_DIR, 'showcase.json');
+const SHOWCASE_TTL = 6 * 3600e3;
+
+function httpsGet(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'GET', headers, timeout: 30e3 }, (res) => {
+      if (res.statusCode >= 301 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        return resolve(httpsGet(new URL(res.headers.location, url).href, headers));
+      }
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve({ status: res.statusCode, buf: Buffer.concat(chunks), type: res.headers['content-type'] || '' }));
+    }).on('error', reject).end();
+  });
+}
+
+async function syncShowcase() {
+  try {
+    const res = await httpsGet(SHOWCASE_URL, { 'User-Agent': 'yituo-studio-sync/1.0' });
+    if (res.status !== 200) throw new Error('showcase http ' + res.status);
+    const data = JSON.parse(res.buf.toString('utf8')).data || {};
+    const sections = ['hero', 'work', 'bento'];
+    const out = {};
+    for (const sec of sections) {
+      out[sec] = [];
+      for (const it of (data[sec] || [])) {
+        const item = { id: it.id, title: it.title || '', prompt: it.prompt || '', subtitle: it.subtitle || '', weight: it.weight || 0 };
+        if (it.image_url) {
+          const ext = (it.image.match(/\.(png|jpe?g|webp)(\.thumb\.jpg)?$/i) || [, 'png'])[1];
+          const fname = `${sec}-${it.id.replace(/[^a-zA-Z0-9-]/g, '')}.${String(ext).toLowerCase() === 'jpg' ? 'jpg' : String(ext).toLowerCase()}`;
+          const local = path.join(SHOWCASE_DIR, fname);
+          if (!fs.existsSync(local) || fs.statSync(local).size === 0) {
+            const img = await httpsGet(it.image_url, { 'User-Agent': 'yituo-studio-sync/1.0' });
+            if (img.status === 200 && img.buf.length > 1000) fs.writeFileSync(local, img.buf);
+          }
+          if (fs.existsSync(local) && fs.statSync(local).size > 0) item.image = '/showcase/' + fname;
+        }
+        if (item.image) out[sec].push(item);
+      }
+      out[sec].sort((a, b) => a.weight - b.weight);
+    }
+    fs.writeFileSync(SHOWCASE_JSON, JSON.stringify(out));
+    // 首页主展示图固定为站点定制图（存在即优先），文案自持
+    const heroCover = path.join(PUBLIC_DIR, 'assets', 'hero-cover.jpg');
+    if (fs.existsSync(heroCover)) {
+      out.hero = [{ id: 'site-hero', title: 'Y2K 恋爱摄影风', prompt: '小恶魔系女孩 · 旧数码相机直闪 · 电玩城霓虹灯 · 暧昧挑逗感 —— 一句话，你也可以拍出这样的心动瞬间。', image: '/assets/hero-cover.jpg' }];
+      fs.writeFileSync(SHOWCASE_JSON, JSON.stringify(out));
+    }
+    console.log(`showcase synced: hero=${out.hero.length} work=${out.work.length} bento=${out.bento.length}`);
+  } catch (e) {
+    console.error('showcase sync failed:', String(e.message || e));
+  }
+}
+function showcaseCache() {
+  try { return JSON.parse(fs.readFileSync(SHOWCASE_JSON, 'utf8')); } catch (_) { return { hero: [], work: [], bento: [] }; }
+}
+syncShowcase();
+setInterval(syncShowcase, SHOWCASE_TTL);
+
+/* ---------------- 数据层：JSON 文件 + 原子写 ---------------- */
+const db = (() => {
+  let data = { users: [], sessions: {}, works: [], cdks: [], counters: { work: 0 } };
+  try { data = Object.assign(data, JSON.parse(fs.readFileSync(DB_PATH, 'utf8'))); } catch (_) {}
+  let saveTimer = null;
+  const save = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      const tmp = DB_PATH + '.tmp';
+      fs.writeFile(tmp, JSON.stringify(data), () => fs.rename(tmp, DB_PATH, () => {}));
+    }, 120);
+  };
+  return { get data() { return data; }, save };
+})();
+
+/* ---------------- 小工具 ---------------- */
+const rand = (n) => crypto.randomBytes(n).toString('base64url');
+const now = () => Date.now();
+const hashPassword = (pwd) => {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(pwd, salt, 32).toString('hex');
+  return salt + ':' + hash;
+};
+const verifyPassword = (pwd, stored) => {
+  const [salt, hash] = String(stored).split(':');
+  if (!salt || !hash) return false;
+  const test = crypto.scryptSync(pwd, salt, 32).toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(test, 'hex'));
+};
+const json = (res, code, obj, cache = 'no-store') => {
+  const body = JSON.stringify(obj);
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cache });
+  res.end(body);
+};
+const readBody = (req, limitMB) => new Promise((resolve, reject) => {
+  const chunks = []; let size = 0;
+  req.on('data', (c) => { size += c.length; if (size > limitMB * 1024 * 1024) { reject(new Error('payload too large')); req.destroy(); } else chunks.push(c); });
+  req.on('end', () => resolve(Buffer.concat(chunks)));
+  req.on('error', reject);
+});
+const readJson = async (req, limitMB = 1) => {
+  const raw = (await readBody(req, limitMB)).toString('utf8');
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch (_) { throw new Error('bad json'); }
+};
+const parseCookies = (req) => {
+  const out = {}; const raw = req.headers.cookie || '';
+  raw.split(';').forEach((p) => { const i = p.indexOf('='); if (i > 0) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim()); });
+  return out;
+};
+const dayKeyCN = (ts = now()) => new Date(ts + 8 * 3600e3).toISOString().slice(0, 10); //UTC+8
+
+/* ---------------- 会话 ---------------- */
+const SESSION_TTL = 30 * 24 * 3600e3;
+function createSession(res, userId) {
+  const token = rand(32);
+  db.data.sessions[token] = { userId, exp: now() + SESSION_TTL };
+  db.save();
+  res.setHeader('Set-Cookie', `sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL / 1000}`);
+}
+function currentUser(req) {
+  const token = parseCookies(req).sid;
+  const s = token && db.data.sessions[token];
+  if (!s || s.exp < now()) return null;
+  return db.data.users.find((u) => u.id === s.userId) || null;
+}
+const publicUser = (u) => ({ username: u.username, hasKey: !!u.apiKey, maskedKey: u.apiKey ? u.apiKey.slice(0, 7) + '…' + u.apiKey.slice(-4) : null });
+
+/* ---------------- 滑块验证码：服务端程序化生成 PNG ---------------- */
+// PNG 编码（RGBA8，filter 0），用内置 zlib，零依赖
+const CRC_TABLE = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; }
+  return t;
+})();
+function crc32(buf) {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function pngChunk(type, data) {
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([len, body, crc]);
+}
+function encodePNG(width, height, rgba) {
+  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; ihdr[9] = 6; // 8bit RGBA
+  const stride = width * 4;
+  const raw = Buffer.alloc((stride + 1) * height);
+  for (let y = 0; y < height; y++) { raw[y * (stride + 1)] = 0; rgba.copy(raw, y * (stride + 1) + 1, y * stride, (y + 1) * stride); }
+  return Buffer.concat([sig, pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(raw, { level: 6 })), pngChunk('IEND', Buffer.alloc(0))]);
+}
+// 伪随机（种子可复现）
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const CAPTCHA_W = 320, CAPTCHA_H = 180, PS = 64, CORE = 46, TAB_R = 9, TOLERANCE = 8, CAPTCHA_TTL = 5 * 60e3;
+const captchas = new Map(); // id -> {x, y, exp}
+
+/* PNG 解码（truecolor 8bit，filter 0-4）——零依赖读取照片底图 */
+function decodePNG(buf) {
+  let off = 8, idat = null, w = 0, h = 0, colorType = 2;
+  while (off < buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString('ascii', off + 4, off + 8);
+    const data = buf.subarray(off + 8, off + 8 + len);
+    if (type === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); colorType = data[9]; }
+    else if (type === 'IDAT') { idat = idat ? Buffer.concat([idat, data]) : data; }
+    off += 12 + len;
+  }
+  if (!idat || (colorType !== 2 && colorType !== 6)) throw new Error('unsupported png ' + colorType);
+  const bpp = colorType === 6 ? 4 : 3;
+  const raw = zlib.inflateSync(idat);
+  const stride = w * bpp;
+  const px = Buffer.alloc(w * h * 4);
+  const line = Buffer.alloc(stride), prev = Buffer.alloc(stride);
+  const paeth = (a, b, c) => {
+    const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+    return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+  };
+  for (let y = 0; y < h; y++) {
+    const ft = raw[y * (stride + 1)];
+    line.fill(0);
+    raw.copy(line, 0, y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    for (let i = 0; i < stride; i++) {
+      const a = i >= bpp ? line[i - bpp] : 0, b = prev[i], c = i >= bpp ? prev[i - bpp] : 0;
+      if (ft === 1) line[i] = (line[i] + a) & 255;
+      else if (ft === 2) line[i] = (line[i] + b) & 255;
+      else if (ft === 3) line[i] = (line[i] + ((a + b) >> 1)) & 255;
+      else if (ft === 4) line[i] = (line[i] + paeth(a, b, c)) & 255;
+    }
+    line.copy(prev);
+    for (let x = 0; x < w; x++) {
+      const s = x * bpp, d = (y * w + x) * 4;
+      px[d] = line[s]; px[d + 1] = line[s + 1]; px[d + 2] = line[s + 2]; px[d + 3] = bpp === 4 ? line[s + 3] : 255;
+    }
+  }
+  return { w, h, px };
+}
+
+/* 启动时加载照片底图库 */
+const CAPTCHA_BG_DIR = path.join(DATA_DIR, 'captcha-bg');
+const captchaPhotos = [];
+function loadCaptchaPhotos() {
+  try {
+    for (const f of fs.readdirSync(CAPTCHA_BG_DIR).filter((f) => f.endsWith('.png')).sort()) {
+      try {
+        const img = decodePNG(fs.readFileSync(path.join(CAPTCHA_BG_DIR, f)));
+        if (img.w === CAPTCHA_W && img.h === CAPTCHA_H) captchaPhotos.push(img.px);
+      } catch (_) {}
+    }
+  } catch (_) {}
+  console.log(`captcha photos loaded: ${captchaPhotos.length}`);
+}
+loadCaptchaPhotos();
+
+/* 经典拼图形状：核心方块 + 四边中点随机凸/凹半圆 */
+function jigsawInside(rnd) {
+  const c = PS / 2, half = CORE / 2;
+  const tab = [0, 1, 2, 3].map(() => (rnd() < 0.5 ? 1 : -1)); // 上右下左：1 凸 / -1 凹
+  return (px, py) => {
+    const inSq = Math.abs(px - c) <= half && Math.abs(py - c) <= half;
+    let v = inSq;
+    let d = Math.hypot(px - c, py - (c - half));
+    v = tab[0] > 0 ? (v || d <= TAB_R) : (v && !(d <= TAB_R));
+    d = Math.hypot(px - (c + half), py - c);
+    v = tab[1] > 0 ? (v || d <= TAB_R) : (v && !(d <= TAB_R));
+    d = Math.hypot(px - c, py - (c + half));
+    v = tab[2] > 0 ? (v || d <= TAB_R) : (v && !(d <= TAB_R));
+    d = Math.hypot(px - (c - half), py - c);
+    v = tab[3] > 0 ? (v || d <= TAB_R) : (v && !(d <= TAB_R));
+    return v;
+  };
+}
+
+function newCaptcha() {
+  const id = rand(16);
+  const x = 66 + Math.floor(Math.random() * (CAPTCHA_W - PS - 86)); // 66..214
+  const y = 10 + Math.floor(Math.random() * (CAPTCHA_H - PS - 20)); // 10..106
+  captchas.set(id, { x, exp: now() + CAPTCHA_TTL, passed: false });
+  if (captchas.size > 5000) for (const [k, v] of captchas) if (v.exp < now()) captchas.delete(k);
+  const bg = captchaPhotos.length ? captchaPhotos[Math.floor(Math.random() * captchaPhotos.length)] : paintFallback();
+  const bgCopy = Buffer.from(bg);
+  const piece = Buffer.alloc(PS * PS * 4);
+  const rnd = mulberry32(Math.floor(Math.random() * 2 ** 31));
+  const inside = jigsawInside(rnd);
+  const edge = (px, py) => inside(px, py) && !(inside(px - 1, py) && inside(px + 1, py) && inside(px, py - 1) && inside(px, py + 1));
+  for (let py = 0; py < PS; py++) for (let px = 0; px < PS; px++) {
+    if (!inside(px, py)) continue;
+    const sx = Math.min(CAPTCHA_W - 1, x + px), sy = Math.min(CAPTCHA_H - 1, y + py);
+    const di = (py * PS + px) * 4, si = (sy * CAPTCHA_W + sx) * 4;
+    // 拼图块：原图提亮 + 白描边
+    piece[di] = Math.min(255, bg[si] * 1.15);
+    piece[di + 1] = Math.min(255, bg[si + 1] * 1.15);
+    piece[di + 2] = Math.min(255, bg[si + 2] * 1.15);
+    piece[di + 3] = 255;
+    if (edge(px, py)) { piece[di] = 255; piece[di + 1] = 255; piece[di + 2] = 255; }
+    // 背景缺口：均匀深蓝灰纯色（极验式）+ 亮色内缘（凹陷感）
+    bgCopy[si] = 35; bgCopy[si + 1] = 31; bgCopy[si + 2] = 55;
+    if (edge(px, py)) { bgCopy[si] = Math.min(255, bg[si] * 0.4 + 150); bgCopy[si + 1] = Math.min(255, bg[si + 1] * 0.4 + 150); bgCopy[si + 2] = Math.min(255, bg[si + 2] * 0.4 + 155); }
+  }
+  return { id, bg: encodePNG(CAPTCHA_W, CAPTCHA_H, bgCopy).toString('base64'), piece: encodePNG(PS, PS, piece).toString('base64'), y };
+}
+/* 无照片时的纯色兜底 */
+const CAPTCHA_PALETTES = [
+  [[197, 210, 254], [251, 207, 232]], [[191, 219, 254], [221, 214, 254]], [[253, 230, 168], [254, 202, 202]],
+  [[167, 243, 208], [186, 230, 253]], [[251, 207, 232], [233, 213, 255]], [[254, 215, 186], [254, 215, 226]],
+];
+function paintFallback() {
+  const buf = Buffer.alloc(CAPTCHA_W * CAPTCHA_H * 4);
+  const rnd = mulberry32(Math.floor(Math.random() * 2 ** 31));
+  const pal = CAPTCHA_PALETTES[Math.floor(rnd() * CAPTCHA_PALETTES.length)];
+  for (let y = 0; y < CAPTCHA_H; y++) for (let x = 0; x < CAPTCHA_W; x++) {
+    const t = (x / CAPTCHA_W + y / CAPTCHA_H) / 2;
+    const i = (y * CAPTCHA_W + x) * 4;
+    buf[i] = pal[0][0] + (pal[1][0] - pal[0][0]) * t;
+    buf[i + 1] = pal[0][1] + (pal[1][1] - pal[0][1]) * t;
+    buf[i + 2] = pal[0][2] + (pal[1][2] - pal[0][2]) * t;
+    buf[i + 3] = 255;
+  }
+  return buf;
+}
+function passCaptcha(id, answerX) {
+  const c = captchas.get(id);
+  if (!c || c.exp < now()) return { passed: false };
+  const ax = Number(answerX);
+  if (Number.isFinite(ax) && Math.abs(ax - c.x) <= TOLERANCE) {
+    c.passed = true; c.exp = now() + 10 * 60e3; // 通过后保留 10 分钟供注册使用
+    return { passed: true };
+  }
+  captchas.delete(id); // 错了就作废重来
+  return { passed: false };
+}
+function consumeCaptcha(id) {
+  const c = captchas.get(id);
+  captchas.delete(id);
+  return !!c && c.passed && c.exp > now();
+}
+
+/* ---------------- IP 限速 ---------------- */
+const rateBuckets = new Map();
+function rateLimit(key, max, windowMs) {
+  const t = now(); const b = rateBuckets.get(key) || [];
+  const recent = b.filter((ts) => ts > t - windowMs);
+  if (recent.length >= max) { rateBuckets.set(key, recent); return false; }
+  recent.push(t); rateBuckets.set(key, recent); return true;
+}
+
+/* ---------------- 上游调用（api.yituohub.com） ---------------- */
+const ALLOWED_SIZES = new Set(['auto', '1024x1024', '1536x1024', '1024x1536', '2048x1152', '2048x2048']);
+const ALLOWED_QUALITY = new Set(['auto', 'low', 'medium', 'high']);
+const ALLOWED_FORMAT = new Set(['png', 'jpeg', 'webp']);
+
+function upstreamRequest(apiPath, body, apiKey, isMultipart, boundary) {
+  return new Promise((resolve, reject) => {
+    let payload; const headers = { 'Authorization': 'Bearer ' + apiKey };
+    if (isMultipart) {
+      headers['Content-Type'] = 'multipart/form-data; boundary=' + boundary;
+      payload = body;
+    } else {
+      headers['Content-Type'] = 'application/json';
+      payload = Buffer.from(JSON.stringify(body));
+    }
+    const u = new URL(UPSTREAM_BASE + apiPath);
+    const req = https.request({ hostname: u.hostname, port: 443, path: u.pathname + u.search, method: 'POST', headers: { ...headers, 'Content-Length': payload.length }, timeout: 300e3 }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8');
+        let data = null; try { data = JSON.parse(text); } catch (_) {}
+        if (res.statusCode >= 200 && res.statusCode < 300 && data) resolve(data);
+        else reject(new Error((data && data.error && (data.error.message || data.error.code)) || `upstream ${res.statusCode}: ${text.slice(0, 200)}`));
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('upstream timeout')));
+    req.on('error', reject);
+    req.write(payload); req.end();
+  });
+}
+function dataURLParts(dataURL) {
+  const m = /^data:(image\/(png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataURL || '');
+  if (!m) return null;
+  const buf = Buffer.from(m[3], 'base64');
+  if (buf.length > 12 * 1024 * 1024) return null;
+  return { mime: m[1] === 'image/jpg' ? 'image/jpeg' : m[1], buf };
+}
+async function callGenerate({ model, apiKey, prompt, size, quality, n, outputFormat, outputCompression }) {
+  const body = { model, prompt, n, size: size || 'auto', quality: quality || 'auto' };
+  if (outputFormat && outputFormat !== 'png') { body.output_format = outputFormat; if (outputCompression != null) body.output_compression = outputCompression; }
+  return upstreamRequest('/v1/images/generations', body, apiKey, false);
+}
+async function callEdit({ model, apiKey, prompt, size, quality, n, refs }) {
+  const boundary = '----yituostudio' + crypto.randomBytes(12).toString('hex');
+  const parts = [];
+  const pushField = (name, value) => parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`));
+  pushField('model', model); pushField('prompt', prompt); pushField('n', String(n));
+  if (size && size !== 'auto') pushField('size', size);
+  if (quality && quality !== 'auto') pushField('quality', quality);
+  refs.slice(0, 4).forEach((d, i) => {
+    const p = dataURLParts(d); if (!p) throw new Error('参考图格式不支持（需 png/jpg/webp，≤12MB）');
+    const ext = p.mime.split('/')[1].replace('jpeg', 'jpg');
+    parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="image[]"; filename="ref${i}.${ext}"\r\nContent-Type: ${p.mime}\r\n\r\n`));
+    parts.push(p.buf); parts.push(Buffer.from('\r\n'));
+  });
+  parts.push(Buffer.from(`--${boundary}--\r\n`));
+  return upstreamRequest('/v1/images/edits', Buffer.concat(parts), apiKey, true, boundary);
+}
+
+/* ---------------- 生成任务 ---------------- */
+const jobs = new Map(); // id -> job
+function publicWork(w) {
+  return { id: w.id, prompt: w.prompt, model: w.model, size: w.size, n: w.n, images: w.images || [], status: w.status || 'done', error: w.error || null, createdAt: w.createdAt, expiresAt: w.createdAt + WORK_TTL_MS, user: w.userName, elapsedMs: w.elapsedMs };
+}
+function logWork(entry) {
+  db.data.counters.work++;
+  db.data.works.unshift({ id: db.data.counters.work, public: entry.status !== 'error', ...entry });
+  db.data.works = db.data.works.slice(0, 500);
+  db.save();
+}
+/* 作品与图片 7 天过期清理 */
+function cleanupExpired() {
+  try {
+    const cutoff = now() - WORK_TTL_MS;
+    const before = db.data.works.length;
+    db.data.works = db.data.works.filter((w) => w.createdAt > cutoff);
+    let removedFiles = 0;
+    for (const f of fs.readdirSync(IMG_DIR)) {
+      const p = path.join(IMG_DIR, f);
+      try { if (fs.statSync(p).mtimeMs < cutoff) { fs.unlinkSync(p); removedFiles++; } } catch (_) {}
+    }
+    if (db.data.works.length !== before || removedFiles) {
+      db.save();
+      console.log(`cleanup: removed ${before - db.data.works.length} works, ${removedFiles} files`);
+    }
+  } catch (e) { console.error('cleanup failed:', String(e.message || e)); }
+}
+setTimeout(cleanupExpired, 30e3);
+setInterval(cleanupExpired, 3600e3);
+async function runJob(jobId) {
+  const job = jobs.get(jobId);
+  if (!job) return;
+  job.status = 'running'; job.startedAt = now();
+  const started = now();
+  try {
+    const hasRefs = job.refs && job.refs.length > 0;
+    const result = hasRefs
+      ? await callEdit({ model: job.model, apiKey: job.apiKey, prompt: job.prompt, size: job.size, quality: job.quality, n: job.n, refs: job.refs })
+      : await callGenerate({ model: job.model, apiKey: job.apiKey, prompt: job.prompt, size: job.size, quality: job.quality, n: job.n, outputFormat: job.outputFormat });
+    const items = (result.data || []).map((d) => d.b64_json || d.url).filter(Boolean);
+    if (!items.length) throw new Error('上游未返回图片');
+    const images = [];
+    for (let i = 0; i < items.length; i++) {
+      const ext = job.outputFormat === 'png' || !job.outputFormat ? 'png' : job.outputFormat;
+      let buf;
+      if (items[i].startsWith('http')) {
+        buf = await new Promise((resolve, reject) => {
+          https.get(items[i], (r) => { const ch = []; r.on('data', (c) => ch.push(c)); r.on('end', () => resolve(Buffer.concat(ch))); }).on('error', reject);
+        });
+      } else buf = Buffer.from(items[i], 'base64');
+      const name = `${jobId}-${i}.${ext}`;
+      fs.writeFileSync(path.join(IMG_DIR, name), buf);
+      images.push('/img/' + name);
+    }
+    job.status = 'done'; job.images = images; job.elapsedMs = now() - started;
+    logWork({ jobId, userId: job.userId, userName: job.userName, prompt: job.prompt, model: job.model, size: job.size, n: job.n, images, status: 'done', createdAt: now(), elapsedMs: job.elapsedMs });
+  } catch (e) {
+    job.status = 'error'; job.error = String(e.message || e).slice(0, 300);
+    logWork({ jobId: job.id, userId: job.userId, userName: job.userName, prompt: job.prompt, model: job.model, size: job.size, n: job.n, images: [], status: 'error', error: job.error, createdAt: now(), elapsedMs: now() - started });
+  } finally { job.refs = null; job.apiKey = null; }
+  setTimeout(() => jobs.delete(jobId), 30 * 60e3);
+}
+
+/* ---------------- 静态文件 ---------------- */
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json' };
+function serveStatic(res, filePath, cache = 'no-cache') {
+  fs.readFile(filePath, (err, buf) => {
+    if (err) { res.writeHead(404); res.end('Not Found'); return; }
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(filePath)] || 'application/octet-stream', 'Cache-Control': cache });
+    res.end(buf);
+  });
+}
+
+/* ---------------- 路由 ---------------- */
+async function handleApi(req, res, pathname) {
+  const ip = req.socket.remoteAddress || '';
+  const sendErr = (code, msg) => json(res, code, { error: msg });
+
+  /* ---- 公开接口 ---- */
+  if (req.method === 'GET' && pathname === '/api/config') {
+    return json(res, 200, { models: MODELS, keyUrl: KEY_URL, workTtlDays: 7, sizes: [...ALLOWED_SIZES], qualities: [...ALLOWED_QUALITY] });
+  }
+  if (req.method === 'GET' && pathname === '/api/captcha/new') {
+    if (!rateLimit('cap' + ip, 30, 60e3)) return sendErr(429, '尝试过于频繁，请稍后再试');
+    const c = newCaptcha();
+    return json(res, 200, { id: c.id, bg: c.bg, piece: c.piece, y: c.y, w: CAPTCHA_W, h: CAPTCHA_H, pieceSize: PS });
+  }
+  if (req.method === 'POST' && pathname === '/api/captcha/check') {
+    if (!rateLimit('capchk' + ip, 30, 60e3)) return sendErr(429, '尝试过于频繁，请稍后再试');
+    const b = await readJson(req, 1);
+    return json(res, 200, passCaptcha(String(b.id || ''), b.x));
+  }
+  if (req.method === 'GET' && pathname === '/api/stats') {
+    const done = db.data.works.filter((w) => w.elapsedMs);
+    const avg = done.length ? Math.round(done.reduce((s, w) => s + w.elapsedMs, 0) / done.length / 100) / 10 : 0;
+    return json(res, 200, { models: MODELS.length, works: db.data.counters.work, avgSec: avg });
+  }
+  if (req.method === 'GET' && pathname === '/api/showcase') {
+    return json(res, 200, showcaseCache(), 'public, max-age=300');
+  }
+  if (req.method === 'GET' && pathname === '/api/works') {
+    const cutoff = now() - WORK_TTL_MS;
+    const list = db.data.works.filter((w) => w.public && w.createdAt > cutoff).slice(0, 24).map(publicWork);
+    return json(res, 200, { works: list });
+  }
+
+  /* ---- 注册 / 登录 ---- */
+  if (req.method === 'POST' && pathname === '/api/auth/register') {
+    if (!rateLimit('reg' + ip, 10, 3600e3)) return sendErr(429, '注册过于频繁，请一小时后再试');
+    const b = await readJson(req, 1);
+    const username = String(b.username || '').trim();
+    const password = String(b.password || '');
+    if (!/^[a-zA-Z0-9_\-\u4e00-\u9fa5]{2,24}$/.test(username)) return sendErr(400, '用户名需 2-24 位中英文、数字、下划线或中划线');
+    if (password.length < 6 || password.length > 72) return sendErr(400, '密码至少 6 位');
+    if (!consumeCaptcha(String(b.captchaId || ''))) return sendErr(400, '滑块验证未通过，请重新完成验证');
+    if (db.data.users.some((u) => u.username === username)) return sendErr(400, '用户名已被占用');
+    const user = { id: rand(12), username, passHash: hashPassword(password), apiKey: null, createdAt: now() };
+    db.data.users.push(user); db.save();
+    createSession(res, user.id);
+    return json(res, 200, { ok: true, user: publicUser(user) });
+  }
+  if (req.method === 'POST' && pathname === '/api/auth/login') {
+    if (!rateLimit('log' + ip, 15, 600e3)) return sendErr(429, '尝试过于频繁，请稍后再试');
+    const b = await readJson(req, 1);
+    const user = db.data.users.find((u) => u.username === String(b.username || '').trim());
+    if (!user || !verifyPassword(String(b.password || ''), user.passHash)) return sendErr(401, '用户名或密码不正确');
+    createSession(res, user.id);
+    return json(res, 200, { ok: true, user: publicUser(user) });
+  }
+  if (req.method === 'POST' && pathname === '/api/auth/logout') {
+    const token = parseCookies(req).sid;
+    if (token) { delete db.data.sessions[token]; db.save(); }
+    res.setHeader('Set-Cookie', 'sid=; Path=/; HttpOnly; Max-Age=0');
+    return json(res, 200, { ok: true });
+  }
+
+  /* ---- 以下需登录 ---- */
+  const user = currentUser(req);
+  if (req.method === 'GET' && pathname === '/api/auth/me') {
+    if (!user) return json(res, 200, { user: null });
+    return json(res, 200, { user: publicUser(user) });
+  }
+  if (!user) return sendErr(401, '请先登录');
+
+  /* 绑定 / 解绑 YituoHub API Key */
+  if (req.method === 'POST' && pathname === '/api/auth/apikey') {
+    const b = await readJson(req, 1);
+    const key = String(b.key || '').trim();
+    if (!key) { user.apiKey = null; db.save(); return json(res, 200, { ok: true, user: publicUser(user) }); }
+    if (!/^sk-[A-Za-z0-9_-]{20,120}$/.test(key)) return sendErr(400, '密钥格式不正确（应以 sk- 开头）');
+    user.apiKey = key; db.save();
+    return json(res, 200, { ok: true, user: publicUser(user) });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/auth/password') {
+    const b = await readJson(req, 1);
+    if (!verifyPassword(String(b.oldPassword || ''), user.passHash)) return sendErr(400, '当前密码不正确');
+    const np = String(b.newPassword || '');
+    if (np.length < 6 || np.length > 72) return sendErr(400, '新密码至少 6 位');
+    user.passHash = hashPassword(np); db.save();
+    return json(res, 200, { ok: true });
+  }
+  if (req.method === 'GET' && pathname === '/api/my/works') {
+    const cutoff = now() - WORK_TTL_MS;
+    const list = db.data.works.filter((w) => w.userId === user.id && w.createdAt > cutoff).slice(0, 100).map(publicWork);
+    return json(res, 200, { works: list });
+  }
+  if (req.method === 'POST' && pathname === '/api/generate') {
+    const myActive = [...jobs.values()].filter((j) => j.userId === user.id && j.status !== 'done' && j.status !== 'error').length;
+    if (myActive >= MAX_CONCURRENT_PER_USER) return sendErr(429, `同一时刻最多 ${MAX_CONCURRENT_PER_USER} 个任务，请稍候`);
+    if (!user.apiKey) return sendErr(403, '请先绑定 YituoHub API 密钥（设置页），生成费用直接从你的 YituoHub 账户扣除');
+    const b = await readJson(req, 24); // 参考图走 base64，放宽
+    const prompt = String(b.prompt || '').trim();
+    if (!prompt) return sendErr(400, '请写下画面描述');
+    if (prompt.length > 32000) return sendErr(400, '描述过长（≤32000 字符）');
+    const model = MODELS.includes(b.model) ? b.model : MODELS[0];
+    const size = ALLOWED_SIZES.has(b.size) ? b.size : 'auto';
+    const quality = ALLOWED_QUALITY.has(b.quality) ? b.quality : 'auto';
+    const outputFormat = ALLOWED_FORMAT.has(b.outputFormat) ? b.outputFormat : 'png';
+    const n = Math.min(4, Math.max(1, Number(b.n) || 1));
+    const refs = Array.isArray(b.refs) ? b.refs.filter(Boolean).slice(0, 4) : [];
+    for (const r of refs) if (!dataURLParts(r)) return sendErr(400, '参考图格式不支持（需 png/jpg/webp）');
+    const jobId = rand(10);
+    jobs.set(jobId, { id: jobId, userId: user.id, userName: user.username, apiKey: user.apiKey, model, prompt, size, quality, n, outputFormat, refs, status: 'pending', createdAt: now() });
+    runJob(jobId);
+    return json(res, 200, { jobId });
+  }
+  if (req.method === 'GET' && pathname.match(/^\/api\/jobs\/([A-Za-z0-9_-]+)$/)) {
+    const job = jobs.get(RegExp.$1);
+    if (!job || (job.userId !== user.id)) return sendErr(404, '任务不存在');
+    return json(res, 200, { status: job.status, images: job.images || null, error: job.error || null, elapsedMs: job.elapsedMs || (job.startedAt ? now() - job.startedAt : 0) });
+  }
+  return sendErr(404, '接口不存在');
+}
+
+const server = http.createServer(async (req, res) => {
+  const pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  try {
+    if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname);
+    if (pathname.startsWith('/img/') && /^[A-Za-z0-9_-]+\.(png|jpe?g|webp)$/.test(path.basename(pathname))) {
+      return serveStatic(res, path.join(IMG_DIR, path.basename(pathname)), 'public, max-age=86400');
+    }
+    if (pathname.startsWith('/showcase/') && /^[A-Za-z0-9._-]+$/.test(path.basename(pathname))) {
+      return serveStatic(res, path.join(SHOWCASE_DIR, path.basename(pathname)), 'public, max-age=86400');
+    }
+    if (pathname.startsWith('/assets/') || pathname === '/favicon.svg') {
+      return serveStatic(res, path.join(PUBLIC_DIR, pathname), 'public, max-age=86400');
+    }
+    if (pathname === '/' || !pathname.includes('.')) {
+      return serveStatic(res, path.join(PUBLIC_DIR, 'index.html'), 'no-cache');
+    }
+    return serveStatic(res, path.join(PUBLIC_DIR, pathname));
+  } catch (e) {
+    json(res, 500, { error: String(e.message || e) });
+  }
+});
+
+server.listen(PORT, '127.0.0.1', () => console.log(`Yituo Studio listening on http://127.0.0.1:${PORT}`));
