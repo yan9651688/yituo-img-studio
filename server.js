@@ -233,15 +233,20 @@ function decodePNG(buf) {
   return { w, h, px };
 }
 
-/* 启动时加载照片底图库 */
+/* 启动时加载照片底图库（预筛掉与缺口纯色过近的照片，避免干扰识别） */
 const CAPTCHA_BG_DIR = path.join(DATA_DIR, 'captcha-bg');
 const captchaPhotos = [];
+const isHoleColored = (px, i) => Math.abs(px[i] - 35) < 12 && Math.abs(px[i + 1] - 31) < 12 && Math.abs(px[i + 2] - 55) < 14;
 function loadCaptchaPhotos() {
   try {
     for (const f of fs.readdirSync(CAPTCHA_BG_DIR).filter((f) => f.endsWith('.png')).sort()) {
       try {
         const img = decodePNG(fs.readFileSync(path.join(CAPTCHA_BG_DIR, f)));
-        if (img.w === CAPTCHA_W && img.h === CAPTCHA_H) captchaPhotos.push(img.px);
+        if (img.w !== CAPTCHA_W || img.h !== CAPTCHA_H) continue;
+        let near = 0;
+        for (let i = 0; i < img.px.length; i += 4) if (isHoleColored(img.px, i)) near++;
+        if (near / (img.w * img.h) > 0.01) { console.log(`captcha bg skipped (close to hole color): ${f}`); continue; }
+        captchaPhotos.push(img.px);
       } catch (_) {}
     }
   } catch (_) {}

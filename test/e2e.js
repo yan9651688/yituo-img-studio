@@ -85,12 +85,28 @@ function decodePNG(buf) {
   // 6. 绑定测试密钥（环境变量 TEST_API_KEY）
   const testKey = process.env.TEST_API_KEY || process.env.UPSTREAM_KEY || '';
   assert(!!testKey, 'TEST_API_KEY 环境变量存在');
-  r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ key: testKey }) });
+  r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ key: testKey, apiBase: process.env.TEST_API_BASE }) });
   assert(r.status === 200 && r.data.user.hasKey === true && r.data.user.maskedKey, '密钥绑定成功（脱敏返回）');
   r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ key: 'bad-format' }) });
   assert(r.status === 400, '非法密钥格式被拒绝');
 
-  // 7. 线路切换（仅线路不动密钥）
+  // 7. 真实生图（绑定时的线路与密钥）
+  console.log('生成中（真实调用 Y Data 上游，约 20–120s）…');
+  r = await api('/api/generate', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ prompt: 'a cute panda drinking coffee, flat illustration', size: '1024x1024', quality: 'low', n: 1 }) });
+  assert(r.status === 200 && r.data.jobId, '生成任务已创建');
+  const { jobId } = r.data;
+  let fin = null;
+  for (let i = 0; i < 60; i++) {
+    await new Promise((s) => setTimeout(s, 3000));
+    const j = await api('/api/jobs/' + jobId, { headers: { Cookie: cookie } });
+    if (j.data.status === 'done' || j.data.status === 'error') { fin = j.data; break; }
+  }
+  assert(!!fin && fin.status === 'done' && fin.images.length === 1, fin && fin.status === 'done' ? `真实生成完成 ${Math.round(fin.elapsedMs / 1000)}s` : `生成失败: ${(fin && fin.error || '').slice(0, 80)}`);
+  const imgRes = await fetch(BASE + fin.images[0]);
+  const imgBuf = Buffer.from(await imgRes.arrayBuffer());
+  assert(imgRes.status === 200 && imgBuf[0] === 0x89 && imgBuf[1] === 0x50, '图片可访问且为 PNG');
+
+  // 8. 线路切换（仅线路不动密钥；切换后密钥属另一线路属预期行为）
   r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ apiBase: 'https://vip.ydata.space' }) });
   assert(r.status === 200 && r.data.user.apiBase === 'https://vip.ydata.space', '线路切换为 vip');
   r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ apiBase: 'https://evil.example.com' }) });
@@ -98,21 +114,9 @@ function decodePNG(buf) {
   r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ apiBase: 'https://www.ydata.space' }) });
   assert(r.status === 200 && r.data.user.apiBase === 'https://www.ydata.space', '线路切回 www');
 
-  // 8. 生成链路：无有效密钥时任务应失败并落日志（Invalid token 证明请求到达 Y Data 平台）
-  r = await api('/api/generate', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ prompt: 'a tiny red circle', size: '1024x1024', quality: 'low', n: 1 }) });
-  assert(r.status === 200 && r.data.jobId, '生成任务已创建');
-  const { jobId } = r.data;
-  let fin = null;
-  for (let i = 0; i < 30; i++) {
-    await new Promise((s) => setTimeout(s, 2000));
-    const j = await api('/api/jobs/' + jobId, { headers: { Cookie: cookie } });
-    if (j.data.status === 'done' || j.data.status === 'error') { fin = j.data; break; }
-  }
-  assert(!!fin && fin.status === 'error' && /[Ii]nvalid|token|401/.test(fin.error || ''), `上游按预期拒绝无效密钥（${(fin && fin.error || '').slice(0, 40)}…）`);
-
-  // 9. 日志含失败记录
+  // 9. 日志含成功记录
   r = await api('/api/my/works', { headers: { Cookie: cookie } });
-  assert(r.status === 200 && r.data.works.length >= 1 && r.data.works[0].status === 'error' && r.data.works[0].expiresAt > Date.now(), '日志包含失败记录且带过期时间');
+  assert(r.status === 200 && r.data.works.length >= 1 && r.data.works[0].status === 'done' && r.data.works[0].expiresAt > Date.now(), '日志包含成功记录且带过期时间');
 
   // 9. 未登录访问受保护接口
   r = await api('/api/generate', { method: 'POST', body: JSON.stringify({ prompt: 'x' }) });
