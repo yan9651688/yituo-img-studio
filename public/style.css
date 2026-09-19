@@ -1,33 +1,33 @@
-/* Yituo Studio — 画廊暖白 × 午夜工坊 · 明暗双主题 */
+/* Yituo Studio — 浅紫渐变 · 玻璃拟态 · 明暗双主题 */
 :root {
-  --bg: #f7f5f0;
-  --bg2: #eeeae1;
-  --card: rgba(255, 254, 251, 0.78);
-  --card-solid: #fffdf9;
-  --ink: #26221b;
-  --ink-2: #6f6759;
-  --ink-3: #a49b8b;
-  --line: rgba(122, 101, 68, 0.15);
+  --bg: #f3effc;
+  --bg2: #fdf7ee;
+  --card: rgba(255, 255, 255, 0.72);
+  --card-solid: #ffffff;
+  --ink: #211b45;
+  --ink-2: #6b6590;
+  --ink-3: #9c96bf;
+  --line: rgba(90, 70, 160, 0.14);
   --brand: #7c5cf0;
   --brand-2: #b889f5;
   --brand-3: #5ec2e8;
-  --accent: #c9a45c;
-  --shadow: 0 24px 70px -26px rgba(84, 62, 26, 0.26);
-  --shadow-sm: 0 10px 30px -12px rgba(84, 62, 26, 0.2);
+  --accent: #f6b1c3;
+  --shadow: 0 24px 70px -24px rgba(102, 68, 200, 0.28);
+  --shadow-sm: 0 10px 30px -12px rgba(102, 68, 200, 0.22);
   --radius: 22px;
   --side-w: 88px;
 }
 html.dark {
-  --bg: #0f0e14;
-  --bg2: #161420;
-  --card: rgba(27, 25, 35, 0.74);
-  --card-solid: #1b1923;
-  --ink: #edeae2;
-  --ink-2: #a39d92;
-  --ink-3: #6a655e;
-  --line: rgba(206, 196, 176, 0.13);
-  --shadow: 0 24px 70px -24px rgba(0, 0, 0, 0.65);
-  --shadow-sm: 0 10px 30px -12px rgba(0, 0, 0, 0.5);
+  --bg: #16132a;
+  --bg2: #1c1734;
+  --card: rgba(38, 32, 66, 0.72);
+  --card-solid: #241e40;
+  --ink: #ece8ff;
+  --ink-2: #a49ecb;
+  --ink-3: #6f68a0;
+  --line: rgba(180, 160, 255, 0.16);
+  --shadow: 0 24px 70px -24px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 10px 30px -12px rgba(0, 0, 0, 0.45);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -35,19 +35,12 @@ body {
   font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(900px 600px at 10% -12%, rgba(201, 164, 92, 0.16), transparent 60%),
-    radial-gradient(760px 520px at 96% 6%, rgba(139, 109, 222, 0.11), transparent 58%),
-    radial-gradient(720px 720px at 52% 118%, rgba(112, 152, 142, 0.12), transparent 62%),
+    radial-gradient(900px 600px at 12% -10%, rgba(124, 92, 240, 0.16), transparent 60%),
+    radial-gradient(800px 500px at 95% 8%, rgba(246, 177, 195, 0.2), transparent 55%),
+    radial-gradient(700px 700px at 55% 115%, rgba(94, 194, 232, 0.14), transparent 60%),
     linear-gradient(160deg, var(--bg), var(--bg2));
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
-}
-html.dark body {
-  background:
-    radial-gradient(900px 600px at 10% -12%, rgba(124, 92, 240, 0.13), transparent 60%),
-    radial-gradient(760px 520px at 96% 6%, rgba(45, 212, 191, 0.055), transparent 58%),
-    radial-gradient(720px 720px at 52% 118%, rgba(240, 185, 99, 0.05), transparent 62%),
-    linear-gradient(165deg, var(--bg), var(--bg2));
 }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; }
@@ -324,9 +317,10 @@ html.dark .slider-loading { background: rgba(20, 16, 40, 0.55); }
 .spinner-sm { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid rgba(124, 92, 240, 0.2); border-top-color: var(--brand); animation: spin 0.8s linear infinite; }
 .slider-bar {
   position: relative; width: 100%; height: 44px; margin-top: 10px; border-radius: 999px;
-  background: #322e26; overflow: hidden;
+  background: #2b2547; overflow: hidden;
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35);
 }
+html:not(.dark) .slider-bar { background: #3a345c; }
 .slider-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, rgba(124, 92, 240, 0.25), rgba(124, 92, 240, 0.45)); }
 .slider-thumb {
   position: absolute; top: 4px; left: 4px; width: 36px; height: 36px; border-radius: 50%;
