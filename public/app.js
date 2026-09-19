@@ -437,13 +437,25 @@ async function pageLogs() {
   if (!state.user) { pageHome(); openAuth('login'); return; }
   main.innerHTML = `
   <div class="page">
-    <div class="page-head"><span class="brand-name">生成日志</span><span class="brand-badge">最近 100 条 · 保留 ${state.config.workTtlDays || 7} 天</span></div>
+    <div class="page-head"><span class="brand-name">生成日志</span><span class="brand-badge">最近 100 条 · 保留 ${state.config.workTtlDays || 7} 天</span><button class="btn danger sm" id="clearLogsBtn" style="margin-left:auto">清空日志</button></div>
     <div class="panel log-panel" id="logPanel"><div class="empty-tip">加载中…</div></div>
   </div>`;
+  const clearBtn = $('#clearLogsBtn');
+  clearBtn.style.display = 'none'; // 有记录时才显示
+  clearBtn.onclick = async () => {
+    if (!confirm('确认清空全部生成日志？\n对应的生成图片会一并删除（资产页同步清空），且不可恢复。')) return;
+    try {
+      const r = await api('/api/my/works/clear', { method: 'POST' });
+      toast('已清理 ' + (r.removed != null ? r.removed : 0) + ' 条记录');
+      window._logsPage = 1;
+      pageLogs();
+    } catch (e) { toast(e.message); }
+  };
   try {
     const d = await api('/api/my/works');
     const works = d.works || [];
     if (!works.length) { $('#logPanel').innerHTML = `<div class="empty-tip">还没有生成记录。</div>`; return; }
+    clearBtn.style.display = '';
     // 客户端分页：每页 10 条
     const PAGE_SIZE = 10;
     const totalPages = Math.max(1, Math.ceil(works.length / PAGE_SIZE));
