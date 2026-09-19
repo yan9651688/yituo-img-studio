@@ -6,8 +6,8 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const main = $('#main');
 
 /* ---------------- 状态 ---------------- */
-const keysUrl = () => (state.user && state.user.apiBase ? state.user.apiBase : (state.config.apiBases || ['https://www.cheaptoken.org'])[0]) + '/keys';
-const state = { user: null, lastResult: null, config: { models: ['gpt-image-2'], apiBases: ['https://www.cheaptoken.org'], workTtlDays: 7, sizes: [], qualities: [] } };
+const keysUrl = () => (state.user && state.user.apiBase ? state.user.apiBase : (state.config.apiBases || ['https://api.yituohub.com'])[0]) + '/keys';
+const state = { user: null, lastResult: null, config: { models: ['gpt-image-2'], apiBases: ['https://api.yituohub.com'], workTtlDays: 7, sizes: [], qualities: [] } };
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', cache: 'no-cache', ...opts });
@@ -73,11 +73,11 @@ async function pageHome() {
   main.innerHTML = `
   <div class="page">
     <div class="rings"></div>
-    <div class="page-head"><span class="brand-name">CheapToken Img Studio</span><span class="brand-badge">AI 生图工作台</span></div>
+    <div class="page-head"><span class="brand-name">Yi Tuo Hub Img Studio</span><span class="brand-badge">AI 生图工作台</span></div>
     <section class="hero">
       <div>
         <h1>让想象，<br /><span class="grad">抵达眼前。</span></h1>
-        <p class="lead">写下一句话，把脑海里的光影、人物与故事，认真画成一张图。绑定你的 CheapToken 密钥即可使用，支持参考图改图、任意尺寸与透明背景。</p>
+        <p class="lead">写下一句话，把脑海里的光影、人物与故事，认真画成一张图。绑定你的 Yi Tuo Hub 密钥即可使用，支持参考图改图、任意尺寸与透明背景。</p>
         <div class="hero-actions">
           <button class="btn primary" id="goStudio">开始创作 <span class="arr">→</span></button>
           <a class="btn ghost" href="#gallery">浏览灵感 ↓</a>
@@ -105,7 +105,7 @@ async function pageHome() {
 
     <section class="section">
       <h2>模型 · 已接入</h2>
-      <p class="sub">三款模型经由 CheapToken 平台供能 · 支持文生图与参考图改图。</p>
+      <p class="sub">三款模型经由 Yi Tuo Hub 平台供能 · 支持文生图与参考图改图。</p>
       <div class="models">
         <div class="model-chip"><div class="m-dot">G</div><div><b>gpt-image-2</b><br /><span>文生图 · 参考图改图 · 透明背景</span></div></div>
         <div class="model-chip"><div class="m-dot">F</div><div><b>gpt-image-2.5-flare</b><br /><span>2.5 系列 · 炫光渲染</span></div></div>
@@ -118,7 +118,7 @@ async function pageHome() {
       <p>从一句话、一张参考图开始，慢慢接近你真正想要的画面。</p>
       <button class="btn primary" id="goStudio2">进入工作台 <span class="arr">→</span></button>
     </section>
-    <div class="site-footer">CheapToken Img Studio · AI 图像创作工作台 · 由 CheapToken 提供</div>
+    <div class="site-footer">Yi Tuo Hub Img Studio · AI 图像创作工作台 · 由 Yi Tuo Hub 提供</div>
   </div>`;
   $('#goStudio').onclick = $('#goStudio2').onclick = () => { history.pushState(null, '', '/generate'); nav(); window.scrollTo(0, 0); };
   main.querySelectorAll('.hero-actions .ghost').forEach((a) => a.onclick = (e) => { e.preventDefault(); $('#gallery').scrollIntoView({ behavior: 'smooth' }); });
@@ -209,7 +209,7 @@ async function pageStudio() {
           <div class="gen-cost">⚠️ 图片仅保留 ${state.config.workTtlDays || 7} 天，到期自动删除，请及时下载</div>
           ${state.user && !state.user.hasKey ? `
           <div class="key-banner">
-            🔑 还未绑定 CheapToken API 密钥，无法生成。
+            🔑 还未绑定 Yi Tuo Hub API 密钥，无法生成。
             <a href="/settings" data-nav="/settings">去设置绑定 →</a>
           </div>` : ''}
         </div>
@@ -248,7 +248,7 @@ async function pageStudio() {
   };
   const cost = () => {
     $('#genCost').textContent = state.user
-      ? (state.user.hasKey ? `本次 ${Number($('#count').value)} 张 · 费用直接从你的 CheapToken 账户扣除` : '绑定密钥后即可生成')
+      ? (state.user.hasKey ? `本次 ${Number($('#count').value)} 张 · 费用直接从你的 Yi Tuo Hub 账户扣除` : '绑定密钥后即可生成')
       : '登录并绑定密钥后即可生成';
   };
   cost();
@@ -384,7 +384,7 @@ async function pollJob(jobId, area, t0) {
       return;
     }
     if (d.status === 'error') {
-      area.innerHTML = `<div class="gen-err">⚠️ ${esc(d.error || '生成失败')}<br /><small style="opacity:.75">失败不扣费；请核对密钥有效性与 CheapToken 余额后重试</small></div>`;
+      area.innerHTML = `<div class="gen-err">⚠️ ${esc(d.error || '生成失败')}<br /><small style="opacity:.75">失败不扣费；请核对密钥有效性与 Yi Tuo Hub 余额后重试</small></div>`;
       return;
     }
   }
@@ -509,17 +509,17 @@ function pageDocs() {
 
     <div class="panel doc-body">
       <p class="doc-kicker">01 · 准备密钥</p>
-      <h3>获取 CheapToken API 密钥</h3>
-      <p>本站是 <b>CheapToken</b> 平台的附属生图站点：生成费用直接从你的 CheapToken 账户余额扣除，本站不收任何中间费用。</p>
+      <h3>获取 Yi Tuo Hub API 密钥</h3>
+      <p>本站是 <b>Yi Tuo Hub</b> 平台的附属生图站点：生成费用直接从你的 Yi Tuo Hub 账户余额扣除，本站不收任何中间费用。</p>
       <div class="doc-lines">
-        <div class="doc-line"><b>www.cheaptoken.org</b><span>AI API Gateway · 注册即用，支持全部生图模型</span><a href="https://www.cheaptoken.org/keys" target="_blank" rel="noopener">获取密钥 ↗</a></div>
+        <div class="doc-line"><b>api.yituohub.com</b><span>官方 API 线路 · 注册即用，支持全部生图模型</span><a href="https://api.yituohub.com/keys" target="_blank" rel="noopener">获取密钥 ↗</a></div>
       </div>
       <ol class="doc-steps">
-        <li>打开密钥页（需先注册 / 登录 CheapToken 账号）</li>
-        <li>点击「新建密钥」，<b>分组选择 openai</b>（支持 gpt-image-2 系列生图模型）</li>
+        <li>打开密钥页（需先注册 / 登录 Yi Tuo Hub 账号）</li>
+        <li>点击「新建密钥」，<b>分组务必选择生图分组</b>（如 gpt-image-2 分组）</li>
         <li>复制以 <code>sk-</code> 开头的密钥，妥善保存——密钥只完整显示一次</li>
       </ol>
-      <div class="doc-note">余额不足或分组不对时生成会失败并提示 401/403，去 CheapToken 后台充值或换分组即可。</div>
+      <div class="doc-note">余额不足或分组不对时生成会失败并提示 401/403，去 Yi Tuo Hub 后台充值或换分组即可。</div>
 
       <p class="doc-kicker">02 · 绑定</p>
       <h3>在本站绑定密钥</h3>
@@ -548,7 +548,7 @@ function pageDocs() {
       <p class="doc-kicker">05 · 常见问题</p>
       <h3>FAQ</h3>
       <dl class="doc-faq">
-        <dt>生成失败提示 401 / 403？</dt><dd>密钥无效、分组不对或 CheapToken 余额不足。去 CheapToken 后台核对后，在「设置」页更新密钥。</dd>
+        <dt>生成失败提示 401 / 403？</dt><dd>密钥无效、分组不对或 Yi Tuo Hub 余额不足。去 Yi Tuo Hub 后台核对后，在「设置」页更新密钥。</dd>
         <dt>提示"请先绑定 API 密钥"？</dt><dd>先到「设置」页完成密钥绑定（见上文 02）。</dd>
         <dt>改图后人物变样了？</dt><dd>描述里强调「严格保持人物长相、发型、服装不变」，或降低改动幅度。</dd>
         <dt>能一次生成多张吗？</dt><dd>可以，数量选 1–4 张；并发任务最多 2 个，排队请稍候。</dd>
@@ -560,14 +560,14 @@ function pageDocs() {
 function pageAbout() {
   main.innerHTML = `
   <div class="page">
-    <div class="page-head"><span class="brand-name">关于</span><span class="brand-badge">CheapToken Img Studio</span></div>
+    <div class="page-head"><span class="brand-name">关于</span><span class="brand-badge">Yi Tuo Hub Img Studio</span></div>
     <div class="panel about-page">
-      <h3 class="about-name"><img src="/assets/logo.png?v=3" alt="Y" /> CheapToken Img Studio</h3>
-      <p class="about-line">是 <a href="https://www.cheaptoken.org" target="_blank" rel="noopener">CheapToken</a> 的附属 AI 生图工作台。</p>
-      <p class="about-line">绑定你的 CheapToken 密钥即可使用 ${state.config.models.length} 款生图模型。</p>
-      <p class="about-line">生成接口由 www.cheaptoken.org 官方网关提供。</p>
-      <p class="about-line">生成费用直连你的 CheapToken 账户，本站不加价。</p>
-      <p class="about-line">生成服务由 CheapToken 平台提供。</p>
+      <h3 class="about-name"><img src="/assets/logo.png?v=3" alt="Y" /> Yi Tuo Hub Img Studio</h3>
+      <p class="about-line">是 <a href="https://api.yituohub.com" target="_blank" rel="noopener">Yi Tuo Hub</a> 的附属 AI 生图工作台。</p>
+      <p class="about-line">绑定你的 Yi Tuo Hub 密钥即可使用 ${state.config.models.length} 款生图模型。</p>
+      <p class="about-line">生成接口由 api.yituohub.com 官方网关提供。</p>
+      <p class="about-line">生成费用直连你的 Yi Tuo Hub 账户，本站不加价。</p>
+      <p class="about-line">生成服务由 Yi Tuo Hub 平台提供。</p>
       <p class="about-line warn">⚠️ 生成的图片在本站仅保留 ${state.config.workTtlDays || 7} 天，请及时下载。</p>
       <p class="about-line muted">提示：请勿生成违反法律法规与平台政策的内容。</p>
     </div>
@@ -597,7 +597,7 @@ async function pageSettings() {
     return;
   }
   // 选中的线路及其密钥槽位（C 端 / B 端各自独立）
-  const bases = state.config.apiBases || ['https://www.cheaptoken.org'];
+  const bases = state.config.apiBases || ['https://api.yituohub.com'];
   const selBase = bases.includes(window._selectedBase) ? window._selectedBase : (state.user.apiBase || bases[0]);
   const selKeyInfo = (state.user.keys || {})[selBase] || null;
   main.innerHTML = `
@@ -617,7 +617,7 @@ async function pageSettings() {
 
     <div class="panel s-card">
       <div class="s-title">API Key</div>
-      <p class="s-desc">调用生图接口需要的访问密钥，仅保存在站点服务器用于代你请求；生成费用直接从你的 CheapToken 账户扣除。${bases.length > 1 ? '<b>C 端与 B 端线路的密钥相互独立，需分别绑定。</b>' : ''}</p>
+      <p class="s-desc">调用生图接口需要的访问密钥，仅保存在站点服务器用于代你请求；生成费用直接从你的 Yi Tuo Hub 账户扣除。${bases.length > 1 ? '<b>C 端与 B 端线路的密钥相互独立，需分别绑定。</b>' : ''}</p>
       ${bases.length > 1 ? `
       <div class="field"><label>接口线路</label>
         <div class="base-select" id="baseSelect">
@@ -636,7 +636,7 @@ async function pageSettings() {
         </div>
       </div>
       ${selKeyInfo ? `<button class="btn ghost" id="clearKeyBtn">${bases.length > 1 ? '清除 ' + esc(selBase.replace('https://', '')) + ' 线路密钥' : '清除密钥'}</button>` : ''}
-      <p class="redeem-tip">没有密钥？去 <a href="${esc(selBase + '/keys')}" target="_blank" rel="noopener">${esc(selBase + '/keys')}</a> 创建（分组选 openai）。401/403 一般是密钥无效、分组不对或余额不足。</p>
+      <p class="redeem-tip">没有密钥？去 <a href="${esc(selBase + '/keys')}" target="_blank" rel="noopener">${esc(selBase + '/keys')}</a> 创建（选择生图分组）。401/403 一般是密钥无效、分组不对或余额不足。</p>
     </div>
 
     <div class="panel s-card">
