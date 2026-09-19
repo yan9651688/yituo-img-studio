@@ -481,7 +481,7 @@ function pageDocs() {
       </div>
       <ol class="doc-steps">
         <li>打开密钥页（需先注册 / 登录 CheapToken 账号）</li>
-        <li>点击「新建密钥」，<b>分组务必选择生图分组</b>（如 gpt-image-2 分组）</li>
+        <li>点击「新建密钥」，<b>分组选择 openai</b>（支持 gpt-image-2 系列生图模型）</li>
         <li>复制以 <code>sk-</code> 开头的密钥，妥善保存——密钥只完整显示一次</li>
       </ol>
       <div class="doc-note">余额不足或分组不对时生成会失败并提示 401/403，去 CheapToken 后台充值或换分组即可。</div>
@@ -601,7 +601,7 @@ async function pageSettings() {
         </div>
       </div>
       ${selKeyInfo ? `<button class="btn ghost" id="clearKeyBtn">${bases.length > 1 ? '清除 ' + esc(selBase.replace('https://', '')) + ' 线路密钥' : '清除密钥'}</button>` : ''}
-      <p class="redeem-tip">没有密钥？去 <a href="${esc(selBase + '/keys')}" target="_blank" rel="noopener">${esc(selBase + '/keys')}</a> 创建（选择生图分组）。401/403 一般是密钥无效、分组不对或余额不足。</p>
+      <p class="redeem-tip">没有密钥？去 <a href="${esc(selBase + '/keys')}" target="_blank" rel="noopener">${esc(selBase + '/keys')}</a> 创建（分组选 openai）。401/403 一般是密钥无效、分组不对或余额不足。</p>
     </div>
 
     <div class="panel s-card">
