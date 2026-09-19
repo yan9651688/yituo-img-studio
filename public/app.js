@@ -460,13 +460,20 @@ async function pageLogs() {
     const PAGE_SIZE = 10;
     const totalPages = Math.max(1, Math.ceil(works.length / PAGE_SIZE));
     if (!window._logsPage || window._logsPage < 1 || window._logsPage > totalPages) window._logsPage = 1;
+    const selected = new Set(); // 跨分页保留勾选
     const renderPage = () => {
       const start = (window._logsPage - 1) * PAGE_SIZE;
       const slice = works.slice(start, start + PAGE_SIZE);
       $('#logPanel').innerHTML = `
+      <div class="log-batch">
+        <label class="batch-all"><input type="checkbox" id="checkAll" /> 全选本页</label>
+        <span class="batch-info" id="batchInfo"></span>
+        <button class="btn danger sm" id="batchDelBtn" style="margin-left:auto">删除所选</button>
+      </div>
       <div class="log-list">
         ${slice.map((w) => `
         <div class="log-item ${w.status === 'error' ? 'err' : ''}">
+          <input type="checkbox" class="log-check" data-id="${w.id}" ${selected.has(w.id) ? 'checked' : ''} title="勾选后可批量删除" />
           ${w.status === 'done' && w.images[0] ? `<img class="log-thumb zoomable" src="${esc(w.images[0])}" loading="lazy" style="cursor:zoom-in" />` : `<div class="log-thumb log-thumb-empty">${w.status === 'error' ? '✕' : '…'}</div>`}
           <div class="log-main">
             <div class="log-top">
@@ -489,6 +496,35 @@ async function pageLogs() {
         <span class="pager-info">第 ${window._logsPage} / ${totalPages} 页 · 共 ${works.length} 条</span>
         <button class="btn ghost sm" id="pgNext" ${window._logsPage >= totalPages ? 'disabled' : ''}>下一页 ›</button>
       </div>`;
+      const syncBatchBar = () => {
+        const n = selected.size;
+        $('#batchInfo').textContent = n ? `已选 ${n} 条` : '勾选记录可批量删除';
+        $('#batchDelBtn').disabled = !n;
+        $('#batchDelBtn').textContent = n ? `删除所选（${n}）` : '删除所选';
+        const boxes = $$('#logPanel .log-check');
+        $('#checkAll').checked = boxes.length > 0 && boxes.every((b) => b.checked);
+      };
+      $$('#logPanel .log-check').forEach((b) => b.onchange = () => {
+        if (b.checked) selected.add(Number(b.dataset.id)); else selected.delete(Number(b.dataset.id));
+        syncBatchBar();
+      });
+      $('#checkAll').onchange = () => {
+        const on = $('#checkAll').checked;
+        $$('#logPanel .log-check').forEach((b) => { b.checked = on; if (on) selected.add(Number(b.dataset.id)); else selected.delete(Number(b.dataset.id)); });
+        syncBatchBar();
+      };
+      $('#batchDelBtn').onclick = async () => {
+        const n = selected.size;
+        if (!n) return;
+        if (!confirm(`确认删除所选的 ${n} 条记录？\n对应的生成图片会一并删除，且不可恢复。`)) return;
+        try {
+          const r = await api('/api/my/works/delete-batch', { method: 'POST', body: JSON.stringify({ ids: [...selected] }) });
+          toast('已删除 ' + (r.removed != null ? r.removed : n) + ' 条记录');
+          selected.clear();
+          pageLogs(); // 重新拉取并渲染（分页会自动收敛）
+        } catch (e) { toast(e.message); }
+      };
+      syncBatchBar();
       $$('#logPanel .copy-prompt').forEach((b) => b.onclick = async () => {
         const t = b.dataset.prompt || '';
         let ok = true;
@@ -510,6 +546,7 @@ async function pageLogs() {
         try {
           await api('/api/my/works/delete', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.id) }) });
           toast('已删除该记录');
+          selected.delete(Number(b.dataset.id));
           pageLogs(); // 重新拉取并渲染（分页会自动收敛）
         } catch (e) { toast(e.message); }
       });
