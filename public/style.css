@@ -480,7 +480,8 @@ html:not(.dark) .slider-bar { background: #3a345c; }
 .base-opt.on span { color: var(--brand); }
 
 /* ---------- 密钥绑定输入行 ---------- */
-.redeem-row { display: flex; gap: 10px; }
+.redeem-row { display: flex; gap: 10px; align-items: stretch; }
+.redeem-row .btn { padding-left: 20px; padding-right: 20px; white-space: nowrap; } /* 覆盖 .btn.primary 的 26px 左内边距（那是给带箭头按钮留的），让文字居中 */
 .redeem-row input {
   flex: 1; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line);
   background: var(--card-solid); color: var(--ink); font-size: 14px; letter-spacing: 0.5px;
