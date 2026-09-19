@@ -620,7 +620,7 @@ function pageAbout() {
   <div class="page">
     <div class="page-head"><span class="brand-name">关于</span><span class="brand-badge">Yi Tuo Hub Img Studio</span></div>
     <div class="panel about-page">
-      <h3 class="about-name"><img src="/assets/logo.png?v=3" alt="Y" /> Yi Tuo Hub Img Studio</h3>
+      <h3 class="about-name"><img src="/assets/logo.png?v=4" alt="Y" /> Yi Tuo Hub Img Studio</h3>
       <p class="about-line">是 <a href="https://api.yituohub.com" target="_blank" rel="noopener">Yi Tuo Hub</a> 的附属 AI 生图工作台。</p>
       <p class="about-line">绑定你的 Yi Tuo Hub 密钥即可使用 ${state.config.models.length} 款生图模型。</p>
       <p class="about-line">生成接口由 api.yituohub.com 官方网关提供。</p>
@@ -665,7 +665,7 @@ async function pageSettings() {
     <div class="panel s-card">
       <div class="s-title">账号</div>
       <div class="user-card" style="margin-bottom:0">
-        <img src="/assets/logo.png?v=3" />
+        <img src="/assets/logo.png?v=4" />
         <div>
           <b style="font-size:16px">${esc(state.user.username)}</b>
           <div class="credits">${state.user.hasKey ? '<span class="key-chip ok">已绑定密钥</span> <span class="mono">' + esc(state.user.maskedKey) + '</span>' : '<span class="key-chip">未绑定密钥</span>'}</div>
