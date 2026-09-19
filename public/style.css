@@ -301,6 +301,7 @@ select {
   transition: background 0.25s;
 }
 .slider-pill.ok { background: rgba(46, 204, 113, 0.85); }
+.slider-pill.fail { background: rgba(240, 80, 90, 0.85); }
 .slider-refresh {
   position: absolute; top: 8px; right: 8px; z-index: 3;
   width: 28px; height: 28px; border-radius: 9px; border: 0; cursor: pointer;
