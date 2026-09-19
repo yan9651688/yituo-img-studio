@@ -788,12 +788,19 @@ $('#registerForm').onsubmit = async (e) => {
   e.preventDefault();
   const f = e.target;
   if (f.password.value !== f.password2.value) { $('#registerErr').textContent = '两次密码不一致'; return; }
-  if (!sliderState.passed) { $('#registerErr').textContent = '请先完成滑块验证'; return; }
+  if (!sliderState.passed) {
+    $('#registerErr').textContent = '请先完成滑块验证';
+    const box = $('#sliderBox');
+    if (box) { box.classList.add('shake'); setTimeout(() => box.classList.remove('shake'), 450); }
+    toast('请先拖动滑块完成拼图验证');
+    return;
+  }
   try {
     await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ username: f.username.value, password: f.password.value, captchaId: sliderState.id, captchaX: sliderState.answer }) });
     closeAuth(); await refreshMe(); toast('注册成功，欢迎加入！'); pageRefreshCurrent();
   } catch (err) {
     $('#registerErr').textContent = err.message;
+    toast(err.message);
     loadSliderCaptcha();
   }
 };
@@ -824,7 +831,7 @@ document.addEventListener('click', (e) => {
 });
 
 /* 滑块验证码逻辑 */
-const DRAG_RATIO = 0.75; // 拖拽阻尼：滑块移动量为手指位移的 75%
+const DRAG_RATIO = 1; // 拼图块与手指 1:1 跟手（0.75 阻尼会导致拼图块落后滑块、用户对不齐缺口）
 const sliderState = { id: null, answer: null, passed: false, dragging: false, startX: 0, curX: 0, cssDx: 0, scale: 1 };
 async function loadSliderCaptcha() {
   sliderState.passed = false; sliderState.answer = null; sliderState.cssDx = 0;
@@ -833,7 +840,7 @@ async function loadSliderCaptcha() {
   $('#sliderLoading').style.display = 'flex';
   $('#registerErr').textContent = '';
   const pillEl = $('#sliderPill');
-  if (pillEl) { pillEl.textContent = '拖动下方滑块完成拼图'; pillEl.classList.remove('ok'); }
+  if (pillEl) { pillEl.textContent = '拖动下方滑块完成拼图'; pillEl.classList.remove('ok', 'fail'); }
   resetSliderBar();
   const loadT0 = Date.now();
   const loadingEl = $('#sliderLoading');
@@ -918,9 +925,11 @@ function initSliderDrag() {
         if (pill) { pill.textContent = '✓ 验证成功'; pill.classList.add('ok'); }
       } else {
         const box = $('#sliderBox');
+        const pill = $('#sliderPill');
+        if (pill) { pill.textContent = '✕ 未对齐，请重试'; pill.classList.add('fail'); }
         box.classList.add('shake');
         setTimeout(() => box.classList.remove('shake'), 450);
-        setTimeout(() => loadSliderCaptcha(), 480);
+        setTimeout(() => loadSliderCaptcha(), 900);
       }
     } catch (_) { loadSliderCaptcha(); }
   };
