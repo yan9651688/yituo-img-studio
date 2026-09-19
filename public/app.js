@@ -220,7 +220,7 @@ async function pageStudio() {
         </div>
         <div class="panel">
           <b style="font-size:14.5px">我的作品</b>
-          <div class="gallery-grid" id="myWorks" style="margin-top:14px"></div>
+          <div id="myWorks" style="margin-top:12px"></div>
         </div>
       </div>
     </div>
@@ -276,18 +276,24 @@ async function loadMyWorks() {
     const el = $('#myWorks');
     if (!el) return;
     const works = (d.works || []).filter((w) => w.status === 'done' && w.images && w.images.length);
+    const MAX = 16; // 一排 8 张，最多 2 排
+    const show = works.slice(0, MAX);
     el.innerHTML = works.length
-      ? works.slice(0, 8).map((w) => `<figure class="g-card" style="cursor:pointer;padding:0"><img class="zoomable" src="${esc(w.images[0])}" loading="lazy" /><div class="g-body"><div class="g-prompt">${esc(w.prompt.slice(0, 40))}${w.prompt.length > 40 ? '…' : ''}</div></div></figure>`).join('')
+      ? `<div class="works-grid">${show.map((w) => `
+          <figure class="w-thumb"><img class="zoomable" src="${esc(w.images[0])}" loading="lazy" /><span class="w-cap">${esc(w.prompt.slice(0, 16))}${w.prompt.length > 16 ? '…' : ''}</span></figure>`).join('')}
+          ${works.length > MAX ? `<button class="works-more" id="worksMore"><span class="dot">⋯</span>查看更多<span class="cnt">共 ${works.length} 张</span></button>` : ''}</div>`
       : `<div class="empty-tip" style="grid-column:1/-1">还没有自己的作品，画一张试试。</div>`;
-    // 点击作品卡片 → 在结果区完整呈现（图片可再点开放大）
-    $$('#myWorks .g-card').forEach((c, i) => c.addEventListener('click', (e) => {
-      if (e.target.closest('img.zoomable')) return; // 图片点击交给 lightbox
-      const w = works[i];
+    // 点击缩略图空白处 → 在结果区完整呈现（图片点击交给 lightbox 放大）
+    $$('#myWorks .w-thumb').forEach((f, i) => f.addEventListener('click', (e) => {
+      if (e.target.closest('img.zoomable')) return;
+      const w = show[i];
       if (!w) return;
       renderResult(w, '生成时间 · ' + fmtTime(w.createdAt));
       const area = $('#resultArea');
       if (area) area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }));
+    const more = $('#worksMore');
+    if (more) more.onclick = () => { history.pushState(null, '', '/assets'); nav(); window.scrollTo(0, 0); };
   } catch (_) {}
 }
 

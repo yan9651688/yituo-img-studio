@@ -348,6 +348,31 @@ html:not(.dark) .slider-bar { background: #3a345c; }
 .user-card .credits { font-size: 13px; color: var(--ink-2); }
 .credits b { color: var(--brand); font-size: 16px; }
 
+/* ---------- 我的作品（工作台紧凑网格：一排8张、最多2排） ---------- */
+.works-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+.w-thumb {
+  position: relative; aspect-ratio: 1; margin: 0; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--line); cursor: pointer; background: rgba(124, 92, 240, 0.08);
+}
+.w-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.w-cap {
+  position: absolute; inset: auto 0 0 0; padding: 14px 5px 4px; font-size: 10px; color: #fff;
+  background: linear-gradient(transparent, rgba(18, 10, 48, 0.78)); opacity: 0; transition: opacity 0.18s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+}
+.w-thumb:hover .w-cap { opacity: 1; }
+.works-more {
+  aspect-ratio: 1; border-radius: 10px; border: 1.5px dashed var(--line); background: transparent;
+  color: var(--ink-2); font-size: 11.5px; cursor: pointer; padding: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  transition: all 0.18s;
+}
+.works-more .dot { font-size: 18px; line-height: 1; }
+.works-more .cnt { font-size: 10px; color: var(--ink-3); }
+.works-more:hover { border-color: var(--brand); color: var(--brand); transform: translateY(-2px); }
+@media (max-width: 980px) { .works-grid { grid-template-columns: repeat(6, 1fr); } }
+@media (max-width: 640px) { .works-grid { grid-template-columns: repeat(4, 1fr); } }
+
 /* ---------- 资产 / 日志 / 文档 ---------- */
 .warn-banner {
   padding: 13px 18px; border-radius: 14px; margin-bottom: 20px; font-size: 13.5px; line-height: 1.8;
