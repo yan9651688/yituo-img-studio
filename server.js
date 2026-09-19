@@ -121,6 +121,12 @@ const db = (() => {
   return { get data() { return data; }, save };
 })();
 
+// 旧单密钥迁移：拆成按线路独立的密钥槽位 user.keys[apiBase]（www 与 vip 各自绑定互不影响）
+for (const u of db.data.users) {
+  if (!u.keys) u.keys = {};
+  if (u.apiKey) { const b = u.apiBase || DEFAULT_API_BASE; if (!u.keys[b]) u.keys[b] = u.apiKey; delete u.apiKey; }
+}
+
 /* ---------------- 小工具 ---------------- */
 const rand = (n) => crypto.randomBytes(n).toString('base64url');
 const now = () => Date.now();
@@ -172,7 +178,15 @@ function currentUser(req) {
   if (!s || s.exp < now()) return null;
   return db.data.users.find((u) => u.id === s.userId) || null;
 }
-const publicUser = (u) => ({ username: u.username, hasKey: !!u.apiKey, maskedKey: u.apiKey ? u.apiKey.slice(0, 7) + '…' + u.apiKey.slice(-4) : null, apiBase: u.apiBase || DEFAULT_API_BASE });
+const lineKey = (u, base) => (u.keys && u.keys[base]) || null;
+const maskKey = (k) => k.slice(0, 7) + '…' + k.slice(-4);
+const publicUser = (u) => {
+  const base = u.apiBase || DEFAULT_API_BASE;
+  const key = lineKey(u, base);
+  const keys = {};
+  for (const b of API_BASES) { const k = lineKey(u, b); keys[b] = k ? { bound: true, masked: maskKey(k) } : { bound: false, masked: null }; }
+  return { username: u.username, hasKey: !!key, maskedKey: key ? maskKey(key) : null, apiBase: base, keys };
+};
 
 /* ---------------- 滑块验证码：服务端程序化生成 PNG ---------------- */
 // PNG 编码（RGBA8，filter 0），用内置 zlib，零依赖
@@ -461,9 +475,17 @@ async function runJob(jobId) {
   const started = now();
   try {
     const hasRefs = job.refs && job.refs.length > 0;
-    const result = hasRefs
-      ? await callEdit({ model: job.model, apiKey: job.apiKey, baseUrl: job.apiBase, prompt: job.prompt, size: job.size, quality: job.quality, n: job.n, refs: job.refs })
-      : await callGenerate({ model: job.model, apiKey: job.apiKey, baseUrl: job.apiBase, prompt: job.prompt, size: job.size, quality: job.quality, n: job.n, outputFormat: job.outputFormat });
+    const invoke = () => hasRefs
+      ? callEdit({ model: job.model, apiKey: job.apiKey, baseUrl: job.apiBase, prompt: job.prompt, size: job.size, quality: job.quality, n: job.n, refs: job.refs })
+      : callGenerate({ model: job.model, apiKey: job.apiKey, baseUrl: job.apiBase, prompt: job.prompt, size: job.size, quality: job.quality, n: job.n, outputFormat: job.outputFormat });
+    // 上游偶发通道/定价抖动（如“仅支持图片生成”“价格未配置”、5xx）时自动重试一次
+    const RETRYABLE = /cannot process text conversation|价格未配置|无可用渠道|upstream 5\d\d/i;
+    let result = null, lastErr = null;
+    for (let attempt = 0; attempt < 2 && !result; attempt++) {
+      try { result = await invoke(); }
+      catch (e) { lastErr = e; if (attempt === 0 && RETRYABLE.test(String(e.message || e))) { job.retried = true; await new Promise((r) => setTimeout(r, 1500)); continue; } break; }
+    }
+    if (!result) throw lastErr || new Error('上游未返回图片');
     const items = (result.data || []).map((d) => d.b64_json || d.url).filter(Boolean);
     if (!items.length) throw new Error('上游未返回图片');
     const images = [];
@@ -482,7 +504,12 @@ async function runJob(jobId) {
     job.status = 'done'; job.images = images; job.elapsedMs = now() - started;
     logWork({ jobId, userId: job.userId, userName: job.userName, prompt: job.prompt, model: job.model, size: job.size, n: job.n, images, status: 'done', createdAt: now(), elapsedMs: job.elapsedMs });
   } catch (e) {
-    job.status = 'error'; job.error = String(e.message || e).slice(0, 300);
+    let msg = String(e.message || e).slice(0, 300);
+    // 把上游原始报错翻译成可操作的提示
+    if (/invalid (api_)?key|invalid token/i.test(msg)) msg += ' ——该密钥在当前线路无效：C 端密钥请配 www 线路、B 端密钥请配 vip 线路，并确认密钥分组支持生图。';
+    else if (/价格未配置/.test(msg)) msg = '该模型在当前线路暂未配置定价（Y Data 上游配置问题），请稍后重试或先换其他模型。';
+    else if (/cannot process text conversation/i.test(msg)) msg = '上游通道暂时异常（已自动重试仍失败），请稍后重试；' + msg.slice(0, 120);
+    job.status = 'error'; job.error = msg;
     logWork({ jobId: job.id, userId: job.userId, userName: job.userName, prompt: job.prompt, model: job.model, size: job.size, n: job.n, images: [], status: 'error', error: job.error, createdAt: now(), elapsedMs: now() - started });
   } finally { job.refs = null; job.apiKey = null; }
   setTimeout(() => jobs.delete(jobId), 30 * 60e3);
@@ -569,16 +596,17 @@ async function handleApi(req, res, pathname) {
   }
   if (!user) return sendErr(401, '请先登录');
 
-  /* 绑定 / 解绑 Y Data API Key */
+  /* 绑定 / 解绑 Y Data API Key（每条线路独立一个密钥槽位） */
   if (req.method === 'POST' && pathname === '/api/auth/apikey') {
     const b = await readJson(req, 1);
     const apiBase = API_BASES.includes(b.apiBase) ? b.apiBase : (user.apiBase || DEFAULT_API_BASE);
-    // 仅切换线路（不带 key 字段），密钥保持不变
+    if (!user.keys) user.keys = {};
+    // 仅切换线路（不带 key 字段）：两条线路各自绑定的密钥原样保留
     if (b.key === undefined) { user.apiBase = apiBase; db.save(); return json(res, 200, { ok: true, user: publicUser(user) }); }
     const key = String(b.key || '').trim();
-    if (!key) { user.apiKey = null; user.apiBase = apiBase; db.save(); return json(res, 200, { ok: true, user: publicUser(user) }); }
+    if (!key) { delete user.keys[apiBase]; user.apiBase = apiBase; db.save(); return json(res, 200, { ok: true, user: publicUser(user) }); }
     if (!/^sk-[A-Za-z0-9_-]{20,120}$/.test(key)) return sendErr(400, '密钥格式不正确（应以 sk- 开头）');
-    user.apiKey = key; user.apiBase = apiBase; db.save();
+    user.keys[apiBase] = key; user.apiBase = apiBase; db.save();
     return json(res, 200, { ok: true, user: publicUser(user) });
   }
 
@@ -598,7 +626,9 @@ async function handleApi(req, res, pathname) {
   if (req.method === 'POST' && pathname === '/api/generate') {
     const myActive = [...jobs.values()].filter((j) => j.userId === user.id && j.status !== 'done' && j.status !== 'error').length;
     if (myActive >= MAX_CONCURRENT_PER_USER) return sendErr(429, `同一时刻最多 ${MAX_CONCURRENT_PER_USER} 个任务，请稍候`);
-    if (!user.apiKey) return sendErr(403, '请先绑定 Y Data API 密钥（设置页），生成费用直接从你的 Y Data 账户扣除');
+    const genBase = user.apiBase || DEFAULT_API_BASE;
+    const genKey = (user.keys && user.keys[genBase]) || null;
+    if (!genKey) return sendErr(403, '当前线路还未绑定 Y Data API 密钥：C 端与 B 端线路需在「设置」里分别绑定各自的密钥');
     const b = await readJson(req, 24); // 参考图走 base64，放宽
     const prompt = String(b.prompt || '').trim();
     if (!prompt) return sendErr(400, '请写下画面描述');
@@ -611,7 +641,7 @@ async function handleApi(req, res, pathname) {
     const refs = Array.isArray(b.refs) ? b.refs.filter(Boolean).slice(0, 4) : [];
     for (const r of refs) if (!dataURLParts(r)) return sendErr(400, '参考图格式不支持（需 png/jpg/webp）');
     const jobId = rand(10);
-    jobs.set(jobId, { id: jobId, userId: user.id, userName: user.username, apiKey: user.apiKey, apiBase: user.apiBase || DEFAULT_API_BASE, model, prompt, size, quality, n, outputFormat, refs, status: 'pending', createdAt: now() });
+    jobs.set(jobId, { id: jobId, userId: user.id, userName: user.username, apiKey: genKey, apiBase: genBase, model, prompt, size, quality, n, outputFormat, refs, status: 'pending', createdAt: now() });
     runJob(jobId);
     return json(res, 200, { jobId });
   }
