@@ -348,6 +348,15 @@ html:not(.dark) .slider-bar { background: #3a345c; }
 .user-card .credits { font-size: 13px; color: var(--ink-2); }
 .credits b { color: var(--brand); font-size: 16px; }
 
+/* ---------- 关于页（一行一句松排版） ---------- */
+.about-page { padding: 30px 34px; }
+.about-name { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 900; margin: 0 0 18px; letter-spacing: 0.5px; }
+.about-name img { width: 34px; height: 34px; border-radius: 10px; }
+.about-line { margin: 15px 0; font-size: 14.5px; line-height: 1.9; }
+.about-line a { color: var(--brand); font-weight: 700; }
+.about-line.warn { color: #d9822b; font-weight: 600; }
+.about-line.muted { color: var(--ink-3); font-size: 13px; }
+
 /* ---------- 我的作品（工作台紧凑网格：一排8张、最多2排） ---------- */
 .works-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
 .w-thumb {

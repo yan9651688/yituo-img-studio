@@ -527,10 +527,15 @@ function pageAbout() {
   main.innerHTML = `
   <div class="page">
     <div class="page-head"><span class="brand-name">关于</span><span class="brand-badge">Y Data Img Studio</span></div>
-    <div class="panel doc-body">
-      <p><b>Y Data Img Studio</b> 是 <a href="https://www.ydata.space" target="_blank" rel="noopener">Y Data</a> 的附属 AI 生图工作台：绑定你的 Y Data 密钥即可使用 ${state.config.models.length} 款模型，费用直连你的 Y Data 账户，本站不加价。</p>
-      <p>生成服务由 Y Data 平台提供；生成的图片在本站保留 ${state.config.workTtlDays || 7} 天，请及时下载。</p>
-      <p style="color:var(--ink-2)">提示：请勿生成违反法律法规与平台政策的内容。</p>
+    <div class="panel about-page">
+      <h3 class="about-name"><img src="/assets/logo.png?v=2" alt="Y" /> Y Data Img Studio</h3>
+      <p class="about-line">是 <a href="https://www.ydata.space" target="_blank" rel="noopener">Y Data</a> 的附属 AI 生图工作台。</p>
+      <p class="about-line">绑定你的 Y Data 密钥即可使用 ${state.config.models.length} 款生图模型。</p>
+      <p class="about-line">支持 www（个人 C 端）与 vip（企业 B 端）双线路，均可生图。</p>
+      <p class="about-line">生成费用直连你的 Y Data 账户，本站不加价。</p>
+      <p class="about-line">生成服务由 Y Data 平台提供。</p>
+      <p class="about-line warn">⚠️ 生成的图片在本站仅保留 ${state.config.workTtlDays || 7} 天，请及时下载。</p>
+      <p class="about-line muted">提示：请勿生成违反法律法规与平台政策的内容。</p>
     </div>
   </div>`;
 }
