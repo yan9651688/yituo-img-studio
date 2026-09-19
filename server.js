@@ -15,9 +15,8 @@ const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data');
 const IMG_DIR = path.join(DATA_DIR, 'images');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 const PORT = Number(process.env.PORT || 8100);
-const UPSTREAM_BASE = (process.env.UPSTREAM_BASE || 'https://api.yituohub.com').replace(/\/+$/, '');
-const UPSTREAM_KEY = process.env.UPSTREAM_KEY || process.env.YITUOHUB_API_KEY || ''; // 兜底密钥（可选）
-const KEY_URL = 'https://api.yituohub.com/keys';
+const API_BASES = ['https://www.ydata.space', 'https://vip.ydata.space']; // 可选线路（默认第一条）
+const DEFAULT_API_BASE = API_BASES[0];
 const MODELS = ['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'];
 const WORK_TTL_MS = 7 * 24 * 3600e3; // 作品与图片保存 7 天
 const MAX_CONCURRENT_PER_USER = 2;
@@ -155,7 +154,7 @@ function currentUser(req) {
   if (!s || s.exp < now()) return null;
   return db.data.users.find((u) => u.id === s.userId) || null;
 }
-const publicUser = (u) => ({ username: u.username, hasKey: !!u.apiKey, maskedKey: u.apiKey ? u.apiKey.slice(0, 7) + '…' + u.apiKey.slice(-4) : null });
+const publicUser = (u) => ({ username: u.username, hasKey: !!u.apiKey, maskedKey: u.apiKey ? u.apiKey.slice(0, 7) + '…' + u.apiKey.slice(-4) : null, apiBase: u.apiBase || DEFAULT_API_BASE });
 
 /* ---------------- 滑块验证码：服务端程序化生成 PNG ---------------- */
 // PNG 编码（RGBA8，filter 0），用内置 zlib，零依赖
@@ -347,7 +346,7 @@ const ALLOWED_SIZES = new Set(['auto', '1024x1024', '1536x1024', '1024x1536', '2
 const ALLOWED_QUALITY = new Set(['auto', 'low', 'medium', 'high']);
 const ALLOWED_FORMAT = new Set(['png', 'jpeg', 'webp']);
 
-function upstreamRequest(apiPath, body, apiKey, isMultipart, boundary) {
+function upstreamRequest(baseUrl, apiPath, body, apiKey, isMultipart, boundary) {
   return new Promise((resolve, reject) => {
     let payload; const headers = { 'Authorization': 'Bearer ' + apiKey };
     if (isMultipart) {
@@ -357,7 +356,7 @@ function upstreamRequest(apiPath, body, apiKey, isMultipart, boundary) {
       headers['Content-Type'] = 'application/json';
       payload = Buffer.from(JSON.stringify(body));
     }
-    const u = new URL(UPSTREAM_BASE + apiPath);
+    const u = new URL(baseUrl + apiPath);
     const req = https.request({ hostname: u.hostname, port: 443, path: u.pathname + u.search, method: 'POST', headers: { ...headers, 'Content-Length': payload.length }, timeout: 300e3 }, (res) => {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
@@ -380,12 +379,12 @@ function dataURLParts(dataURL) {
   if (buf.length > 12 * 1024 * 1024) return null;
   return { mime: m[1] === 'image/jpg' ? 'image/jpeg' : m[1], buf };
 }
-async function callGenerate({ model, apiKey, prompt, size, quality, n, outputFormat, outputCompression }) {
+async function callGenerate({ model, apiKey, baseUrl, prompt, size, quality, n, outputFormat, outputCompression }) {
   const body = { model, prompt, n, size: size || 'auto', quality: quality || 'auto' };
   if (outputFormat && outputFormat !== 'png') { body.output_format = outputFormat; if (outputCompression != null) body.output_compression = outputCompression; }
-  return upstreamRequest('/v1/images/generations', body, apiKey, false);
+  return upstreamRequest(baseUrl, '/v1/images/generations', body, apiKey, false);
 }
-async function callEdit({ model, apiKey, prompt, size, quality, n, refs }) {
+async function callEdit({ model, apiKey, baseUrl, prompt, size, quality, n, refs }) {
   const boundary = '----yituostudio' + crypto.randomBytes(12).toString('hex');
   const parts = [];
   const pushField = (name, value) => parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`));
@@ -399,7 +398,7 @@ async function callEdit({ model, apiKey, prompt, size, quality, n, refs }) {
     parts.push(p.buf); parts.push(Buffer.from('\r\n'));
   });
   parts.push(Buffer.from(`--${boundary}--\r\n`));
-  return upstreamRequest('/v1/images/edits', Buffer.concat(parts), apiKey, true, boundary);
+  return upstreamRequest(baseUrl, '/v1/images/edits', Buffer.concat(parts), apiKey, true, boundary);
 }
 
 /* ---------------- 生成任务 ---------------- */
@@ -440,8 +439,8 @@ async function runJob(jobId) {
   try {
     const hasRefs = job.refs && job.refs.length > 0;
     const result = hasRefs
-      ? await callEdit({ model: job.model, apiKey: job.apiKey, prompt: job.prompt, size: job.size, quality: job.quality, n: job.n, refs: job.refs })
-      : await callGenerate({ model: job.model, apiKey: job.apiKey, prompt: job.prompt, size: job.size, quality: job.quality, n: job.n, outputFormat: job.outputFormat });
+      ? await callEdit({ model: job.model, apiKey: job.apiKey, baseUrl: job.apiBase, prompt: job.prompt, size: job.size, quality: job.quality, n: job.n, refs: job.refs })
+      : await callGenerate({ model: job.model, apiKey: job.apiKey, baseUrl: job.apiBase, prompt: job.prompt, size: job.size, quality: job.quality, n: job.n, outputFormat: job.outputFormat });
     const items = (result.data || []).map((d) => d.b64_json || d.url).filter(Boolean);
     if (!items.length) throw new Error('上游未返回图片');
     const images = [];
@@ -483,7 +482,7 @@ async function handleApi(req, res, pathname) {
 
   /* ---- 公开接口 ---- */
   if (req.method === 'GET' && pathname === '/api/config') {
-    return json(res, 200, { models: MODELS, keyUrl: KEY_URL, workTtlDays: 7, sizes: [...ALLOWED_SIZES], qualities: [...ALLOWED_QUALITY] });
+    return json(res, 200, { models: MODELS, apiBases: API_BASES, workTtlDays: 7, sizes: [...ALLOWED_SIZES], qualities: [...ALLOWED_QUALITY] });
   }
   if (req.method === 'GET' && pathname === '/api/captcha/new') {
     if (!rateLimit('cap' + ip, 30, 60e3)) return sendErr(429, '尝试过于频繁，请稍后再试');
@@ -550,10 +549,13 @@ async function handleApi(req, res, pathname) {
   /* 绑定 / 解绑 YituoHub API Key */
   if (req.method === 'POST' && pathname === '/api/auth/apikey') {
     const b = await readJson(req, 1);
+    const apiBase = API_BASES.includes(b.apiBase) ? b.apiBase : (user.apiBase || DEFAULT_API_BASE);
+    // 仅切换线路（不带 key 字段），密钥保持不变
+    if (b.key === undefined) { user.apiBase = apiBase; db.save(); return json(res, 200, { ok: true, user: publicUser(user) }); }
     const key = String(b.key || '').trim();
-    if (!key) { user.apiKey = null; db.save(); return json(res, 200, { ok: true, user: publicUser(user) }); }
+    if (!key) { user.apiKey = null; user.apiBase = apiBase; db.save(); return json(res, 200, { ok: true, user: publicUser(user) }); }
     if (!/^sk-[A-Za-z0-9_-]{20,120}$/.test(key)) return sendErr(400, '密钥格式不正确（应以 sk- 开头）');
-    user.apiKey = key; db.save();
+    user.apiKey = key; user.apiBase = apiBase; db.save();
     return json(res, 200, { ok: true, user: publicUser(user) });
   }
 
@@ -573,7 +575,7 @@ async function handleApi(req, res, pathname) {
   if (req.method === 'POST' && pathname === '/api/generate') {
     const myActive = [...jobs.values()].filter((j) => j.userId === user.id && j.status !== 'done' && j.status !== 'error').length;
     if (myActive >= MAX_CONCURRENT_PER_USER) return sendErr(429, `同一时刻最多 ${MAX_CONCURRENT_PER_USER} 个任务，请稍候`);
-    if (!user.apiKey) return sendErr(403, '请先绑定 YituoHub API 密钥（设置页），生成费用直接从你的 YituoHub 账户扣除');
+    if (!user.apiKey) return sendErr(403, '请先绑定 Y Data API 密钥（设置页），生成费用直接从你的 Y Data 账户扣除');
     const b = await readJson(req, 24); // 参考图走 base64，放宽
     const prompt = String(b.prompt || '').trim();
     if (!prompt) return sendErr(400, '请写下画面描述');
@@ -586,7 +588,7 @@ async function handleApi(req, res, pathname) {
     const refs = Array.isArray(b.refs) ? b.refs.filter(Boolean).slice(0, 4) : [];
     for (const r of refs) if (!dataURLParts(r)) return sendErr(400, '参考图格式不支持（需 png/jpg/webp）');
     const jobId = rand(10);
-    jobs.set(jobId, { id: jobId, userId: user.id, userName: user.username, apiKey: user.apiKey, model, prompt, size, quality, n, outputFormat, refs, status: 'pending', createdAt: now() });
+    jobs.set(jobId, { id: jobId, userId: user.id, userName: user.username, apiKey: user.apiKey, apiBase: user.apiBase || DEFAULT_API_BASE, model, prompt, size, quality, n, outputFormat, refs, status: 'pending', createdAt: now() });
     runJob(jobId);
     return json(res, 200, { jobId });
   }

@@ -6,7 +6,8 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const main = $('#main');
 
 /* ---------------- 状态 ---------------- */
-const state = { user: null, lastResult: null, config: { models: ['gpt-image-2'], keyUrl: 'https://api.yituohub.com/keys', workTtlDays: 7, sizes: [], qualities: [] } };
+const keysUrl = () => (state.user && state.user.apiBase ? state.user.apiBase : (state.config.apiBases || ['https://www.ydata.space'])[0]) + '/keys';
+const state = { user: null, lastResult: null, config: { models: ['gpt-image-2'], apiBases: ['https://www.ydata.space', 'https://vip.ydata.space'], workTtlDays: 7, sizes: [], qualities: [] } };
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', cache: 'no-cache', ...opts });
@@ -72,11 +73,11 @@ async function pageHome() {
   main.innerHTML = `
   <div class="page">
     <div class="rings"></div>
-    <div class="page-head"><span class="brand-name">Yi Tuo Hub Img Studio</span><span class="brand-badge">AI 生图工作台</span></div>
+    <div class="page-head"><span class="brand-name">Y Data Img Studio</span><span class="brand-badge">AI 生图工作台</span></div>
     <section class="hero">
       <div>
         <h1>让想象，<br /><span class="grad">抵达眼前。</span></h1>
-        <p class="lead">写下一句话，把脑海里的光影、人物与故事，认真画成一张图。绑定你的 YituoHub 密钥即可使用，支持参考图改图、任意尺寸与透明背景。</p>
+        <p class="lead">写下一句话，把脑海里的光影、人物与故事，认真画成一张图。绑定你的 Y Data 密钥即可使用，支持参考图改图、任意尺寸与透明背景。</p>
         <div class="hero-actions">
           <button class="btn primary" id="goStudio">开始创作 <span class="arr">→</span></button>
           <a class="btn ghost" href="#gallery">浏览灵感 ↓</a>
@@ -104,7 +105,7 @@ async function pageHome() {
 
     <section class="section">
       <h2>模型 · 已接入</h2>
-      <p class="sub">三款模型全部经由 api.yituohub.com 供能 · 支持文生图与参考图改图。</p>
+      <p class="sub">三款模型经由 Y Data 平台双线路供能 · 支持文生图与参考图改图。</p>
       <div class="models">
         <div class="model-chip"><div class="m-dot">G</div><div><b>gpt-image-2</b><br /><span>文生图 · 参考图改图 · 透明背景</span></div></div>
         <div class="model-chip"><div class="m-dot">F</div><div><b>gpt-image-2.5-flare</b><br /><span>2.5 系列 · 炫光渲染</span></div></div>
@@ -117,7 +118,7 @@ async function pageHome() {
       <p>从一句话、一张参考图开始，慢慢接近你真正想要的画面。</p>
       <button class="btn primary" id="goStudio2">进入工作台 <span class="arr">→</span></button>
     </section>
-    <div class="site-footer">Yi Tuo Hub Img Studio · AI 图像创作工作台 · 由 YituoHub 提供<br />首页作品展示经 <a href="https://img.junliai.org/" target="_blank" rel="noopener">Junli Studio</a> 授权同步</div>
+    <div class="site-footer">Y Data Img Studio · AI 图像创作工作台 · 由 Y Data 提供<br />首页作品展示经 <a href="https://img.junliai.org/" target="_blank" rel="noopener">Junli Studio</a> 授权同步</div>
   </div>`;
   $('#goStudio').onclick = $('#goStudio2').onclick = () => { history.pushState(null, '', '/generate'); nav(); window.scrollTo(0, 0); };
   main.querySelectorAll('.hero-actions .ghost').forEach((a) => a.onclick = (e) => { e.preventDefault(); $('#gallery').scrollIntoView({ behavior: 'smooth' }); });
@@ -208,7 +209,7 @@ async function pageStudio() {
           <div class="gen-cost">⚠️ 图片仅保留 ${state.config.workTtlDays || 7} 天，到期自动删除，请及时下载</div>
           ${state.user && !state.user.hasKey ? `
           <div class="key-banner">
-            🔑 还未绑定 YituoHub API 密钥，无法生成。
+            🔑 还未绑定 Y Data API 密钥，无法生成。
             <a href="/settings" data-nav="/settings">去设置绑定 →</a>
           </div>` : ''}
         </div>
@@ -247,7 +248,7 @@ async function pageStudio() {
   };
   const cost = () => {
     $('#genCost').textContent = state.user
-      ? (state.user.hasKey ? `本次 ${Number($('#count').value)} 张 · 费用直接从你的 YituoHub 账户扣除` : '绑定密钥后即可生成')
+      ? (state.user.hasKey ? `本次 ${Number($('#count').value)} 张 · 费用直接从你的 Y Data 账户扣除` : '绑定密钥后即可生成')
       : '登录并绑定密钥后即可生成';
   };
   cost();
@@ -377,7 +378,7 @@ async function pollJob(jobId, area, t0) {
       return;
     }
     if (d.status === 'error') {
-      area.innerHTML = `<div class="gen-err">⚠️ ${esc(d.error || '生成失败')}<br /><small style="opacity:.75">失败不扣费；请核对密钥有效性与 YituoHub 余额后重试</small></div>`;
+      area.innerHTML = `<div class="gen-err">⚠️ ${esc(d.error || '生成失败')}<br /><small style="opacity:.75">失败不扣费；请核对密钥有效性与 Y Data 余额后重试</small></div>`;
       return;
     }
   }
@@ -460,21 +461,21 @@ async function pageLogs() {
   }
 }
 function pageDocs() {
-  const keyUrl = state.config.keyUrl || 'https://api.yituohub.com/keys';
+  const keyUrl = keysUrl();
   main.innerHTML = `
   <div class="page">
     <div class="page-head"><span class="brand-name">使用文档</span><span class="brand-badge">从零到出图</span></div>
 
     <div class="panel doc-body">
       <p class="doc-kicker">01 · 准备密钥</p>
-      <h3>获取 YituoHub API 密钥</h3>
-      <p>本站是 <b>Yi Tuo Hub</b>（api.yituohub.com）的附属生图站点：生成费用直接从你的 YituoHub 账户余额扣除，本站不收任何中间费用。</p>
+      <h3>获取 Y Data API 密钥</h3>
+      <p>本站是 <b>Y Data</b> 平台的附属生图站点，支持 www / vip 双线路：生成费用直接从你的 Y Data 账户余额扣除，本站不收任何中间费用。</p>
       <ol class="doc-steps">
-        <li>打开 <a href="${esc(keyUrl)}" target="_blank" rel="noopener">${esc(keyUrl)}</a>（需先注册 / 登录 YituoHub）</li>
+        <li>打开 <a href="${esc(keyUrl)}" target="_blank" rel="noopener">${esc(keyUrl)}</a>（需先注册 / 登录 Y Data）</li>
         <li>点击「新建密钥」，<b>分组务必选择生图分组</b>（如 gpt-image-2 分组）</li>
         <li>复制以 <code>sk-</code> 开头的密钥，妥善保存——密钥只完整显示一次</li>
       </ol>
-      <div class="doc-note">余额不足或分组不对时生成会失败并提示 401/403，去 YituoHub 后台充值或换分组即可。</div>
+      <div class="doc-note">余额不足或分组不对时生成会失败并提示 401/403，去 Y Data 后台充值或换分组即可。</div>
 
       <p class="doc-kicker">02 · 绑定</p>
       <h3>在本站绑定密钥</h3>
@@ -503,7 +504,7 @@ function pageDocs() {
       <p class="doc-kicker">05 · 常见问题</p>
       <h3>FAQ</h3>
       <dl class="doc-faq">
-        <dt>生成失败提示 401 / 403？</dt><dd>密钥无效、分组不对或 YituoHub 余额不足。去 YituoHub 后台核对后，在「设置」页更新密钥。</dd>
+        <dt>生成失败提示 401 / 403？</dt><dd>密钥无效、分组不对或 Y Data 余额不足。去 Y Data 后台核对后，在「设置」页更新密钥。</dd>
         <dt>提示"请先绑定 API 密钥"？</dt><dd>先到「设置」页完成密钥绑定（见上文 02）。</dd>
         <dt>改图后人物变样了？</dt><dd>描述里强调「严格保持人物长相、发型、服装不变」，或降低改动幅度。</dd>
         <dt>能一次生成多张吗？</dt><dd>可以，数量选 1–4 张；并发任务最多 2 个，排队请稍候。</dd>
@@ -515,10 +516,10 @@ function pageDocs() {
 function pageAbout() {
   main.innerHTML = `
   <div class="page">
-    <div class="page-head"><span class="brand-name">关于</span><span class="brand-badge">Yi Tuo Hub Img Studio</span></div>
+    <div class="page-head"><span class="brand-name">关于</span><span class="brand-badge">Y Data Img Studio</span></div>
     <div class="panel doc-body">
-      <p><b>Yi Tuo Hub Img Studio</b> 是 <a href="https://api.yituohub.com" target="_blank" rel="noopener">Yi Tuo Hub</a> 的附属 AI 生图工作台：绑定你的 YituoHub 密钥即可使用 ${state.config.models.length} 款模型，费用直连你的 YituoHub 账户，本站不加价。</p>
-      <p>生成服务由 api.yituohub.com 提供；生成的图片在本站保留 ${state.config.workTtlDays || 7} 天，请及时下载。</p>
+      <p><b>Y Data Img Studio</b> 是 <a href="https://www.ydata.space" target="_blank" rel="noopener">Y Data</a> 的附属 AI 生图工作台：绑定你的 Y Data 密钥即可使用 ${state.config.models.length} 款模型，费用直连你的 Y Data 账户，本站不加价。</p>
+      <p>生成服务由 Y Data 平台提供；生成的图片在本站保留 ${state.config.workTtlDays || 7} 天，请及时下载。</p>
       <p style="color:var(--ink-2)">提示：请勿生成违反法律法规与平台政策的内容。</p>
     </div>
   </div>`;
@@ -553,7 +554,7 @@ async function pageSettings() {
     <div class="panel s-card">
       <div class="s-title">账号</div>
       <div class="user-card" style="margin-bottom:0">
-        <img src="/assets/avatar.jpg" />
+        <img src="/assets/logo.png" />
         <div>
           <b style="font-size:16px">${esc(state.user.username)}</b>
           <div class="credits">${state.user.hasKey ? '<span class="key-chip ok">已绑定密钥</span> <span class="mono">' + esc(state.user.maskedKey) + '</span>' : '<span class="key-chip">未绑定密钥</span>'}</div>
@@ -563,9 +564,15 @@ async function pageSettings() {
 
     <div class="panel s-card">
       <div class="s-title">API Key</div>
-      <p class="s-desc">调用生图接口需要的访问密钥，仅保存在站点服务器用于代你请求；生成费用直接从你的 Yi Tuo Hub 账户扣除。</p>
+      <p class="s-desc">调用生图接口需要的访问密钥，仅保存在站点服务器用于代你请求；生成费用直接从你的 Y Data 账户扣除。</p>
+      <div class="field"><label>接口线路</label>
+        <div class="base-select" id="baseSelect">
+          ${(state.config.apiBases || []).map((b) => `
+            <button type="button" class="base-opt ${((state.user.apiBase || (state.config.apiBases || ['https://www.ydata.space'])[0]) === b) ? 'on' : ''}" data-base="${esc(b)}">${esc(b.replace('https://', ''))}<span>${b.includes('vip') ? 'VIP 专线' : '标准线路'}</span></button>`).join('')}
+        </div>
+      </div>
       <div class="field"><label>当前密钥</label>
-        <div class="current-key ${state.user.hasKey ? 'bound' : ''}">${state.user.hasKey ? '<span class="mono">' + esc(state.user.maskedKey) + '</span>' : '未绑定'}</div>
+        <div class="current-key ${state.user.hasKey ? 'bound' : ''}">${state.user.hasKey ? '<span class="mono">' + esc(state.user.maskedKey) + '</span>' : '未绑定'} <span style="float:right;color:var(--ink-3);font-size:11.5px">${esc((state.user.apiBase || 'https://www.ydata.space').replace('https://', ''))}</span></div>
       </div>
       <div class="field"><label>新密钥（sk- 开头）</label>
         <div class="redeem-row">
@@ -574,7 +581,7 @@ async function pageSettings() {
         </div>
       </div>
       ${state.user.hasKey ? '<button class="btn ghost" id="clearKeyBtn">清除密钥</button>' : ''}
-      <p class="redeem-tip">没有密钥？去 <a href="${esc(state.config.keyUrl)}" target="_blank" rel="noopener">${esc(state.config.keyUrl)}</a> 创建（选择生图分组）。401/403 一般是密钥无效、分组不对或余额不足。</p>
+      <p class="redeem-tip">没有密钥？去 <a href="${esc(keysUrl())}" target="_blank" rel="noopener">${esc(keysUrl())}</a> 创建（选择生图分组）。401/403 一般是密钥无效、分组不对或余额不足。</p>
     </div>
 
     <div class="panel s-card">
@@ -594,18 +601,28 @@ async function pageSettings() {
       <button class="btn danger" id="logoutBtn">退出登录</button>
     </div>
   </div>`;
+  window._selectedBase = state.user.apiBase || (state.config.apiBases || ['https://www.ydata.space'])[0];
+  $$('#baseSelect .base-opt').forEach((b) => b.onclick = () => {
+    $$('#baseSelect .base-opt').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on');
+    window._selectedBase = b.dataset.base;
+    // 切换线路立即保存（仅线路，不动密钥）
+    api('/api/auth/apikey', { method: 'POST', body: JSON.stringify({ apiBase: window._selectedBase }) })
+      .then(() => refreshMe().then(() => toast('线路已切换：' + window._selectedBase.replace('https://', ''))))
+      .catch((e) => toast(e.message));
+  });
   $('#saveKeyBtn').onclick = async () => {
     const key = $('#apiKeyInput').value.trim();
     if (!key) { toast('先粘贴 sk- 开头的密钥'); return; }
     try {
-      await api('/api/auth/apikey', { method: 'POST', body: JSON.stringify({ key }) });
+      await api('/api/auth/apikey', { method: 'POST', body: JSON.stringify({ key, apiBase: window._selectedBase }) });
       toast('密钥已保存'); await refreshMe(); pageSettings();
     } catch (e) { toast(e.message); }
   };
   const clearBtn = $('#clearKeyBtn');
   if (clearBtn) clearBtn.onclick = async () => {
     if (!confirm('确认清除已绑定的 API Key？清除后无法生成，需重新绑定。')) return;
-    try { await api('/api/auth/apikey', { method: 'POST', body: JSON.stringify({ key: '' }) }); toast('已清除 API Key'); await refreshMe(); pageSettings(); }
+    try { await api('/api/auth/apikey', { method: 'POST', body: JSON.stringify({ key: '', apiBase: window._selectedBase }) }); toast('已清除 API Key'); await refreshMe(); pageSettings(); }
     catch (e) { toast(e.message); }
   };
   $('#chgPwd').onclick = async () => {

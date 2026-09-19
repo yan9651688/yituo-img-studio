@@ -59,7 +59,7 @@ button { font-family: inherit; }
 .logo { display: block; margin-bottom: 10px; }
 .logo img {
   width: 46px; height: 46px; border-radius: 15px; object-fit: cover; display: block;
-  box-shadow: 0 6px 18px -6px rgba(102, 68, 200, 0.55), 0 0 0 1px rgba(102, 68, 200, 0.12);
+  box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.45);
   transition: transform 0.2s;
 }
 .logo:hover img { transform: scale(1.06); }
@@ -397,6 +397,18 @@ html:not(.dark) .slider-bar { background: #3a345c; }
 .doc-note { padding: 11px 15px; border-radius: 12px; font-size: 12.5px; color: var(--ink-2); background: rgba(124, 92, 240, 0.07); border-left: 3px solid var(--brand); margin: 8px 0 4px; line-height: 1.8; }
 .doc-faq dt { font-weight: 700; margin-top: 14px; }
 .doc-faq dd { margin: 4px 0 0 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.8; }
+
+/* ---------- 接口线路选择 ---------- */
+.base-select { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.base-opt {
+  padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--card);
+  color: var(--ink); font-size: 13.5px; font-weight: 700; cursor: pointer; text-align: left;
+  display: flex; flex-direction: column; gap: 3px; transition: all 0.18s;
+}
+.base-opt span { font-size: 11px; font-weight: 500; color: var(--ink-3); }
+.base-opt:hover { border-color: rgba(124, 92, 240, 0.4); }
+.base-opt.on { border-color: var(--brand); background: rgba(124, 92, 240, 0.08); box-shadow: 0 4px 14px -6px rgba(124, 92, 240, 0.4); }
+.base-opt.on span { color: var(--brand); }
 
 /* ---------- 密钥绑定输入行 ---------- */
 .redeem-row { display: flex; gap: 10px; }

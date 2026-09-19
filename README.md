@@ -1,6 +1,6 @@
-# Yi Tuo Hub Img Studio
+# Y Data Img Studio
 
-[Yi Tuo Hub](https://api.yituohub.com) 的附属 AI 生图工作台：用户绑定自己的 YituoHub API 密钥即可使用 gpt-image-2 系列模型生图，费用直连用户账户，本站不经手任何费用。
+[Y Data](https://www.ydata.space) 的附属 AI 生图工作台：用户绑定自己的 Y Data API 密钥即可使用 gpt-image-2 系列模型生图，支持 www / vip 双线路可选，费用直连用户账户，本站不经手任何费用。
 
 ## 功能
 
@@ -28,7 +28,6 @@
 # 2. 配置环境变量（密钥不要进版本库）
 cat > /opt/yituo-img/.env <<'EOF'
 PORT=8100
-UPSTREAM_BASE=https://api.yituohub.com
 EOF
 chmod 600 /opt/yituo-img/.env
 
