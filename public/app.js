@@ -443,15 +443,24 @@ async function pageLogs() {
   try {
     const d = await api('/api/my/works');
     const works = d.works || [];
-    $('#logPanel').innerHTML = works.length ? `
+    if (!works.length) { $('#logPanel').innerHTML = `<div class="empty-tip">还没有生成记录。</div>`; return; }
+    // 客户端分页：每页 10 条
+    const PAGE_SIZE = 10;
+    const totalPages = Math.max(1, Math.ceil(works.length / PAGE_SIZE));
+    if (!window._logsPage || window._logsPage < 1 || window._logsPage > totalPages) window._logsPage = 1;
+    const renderPage = () => {
+      const start = (window._logsPage - 1) * PAGE_SIZE;
+      const slice = works.slice(start, start + PAGE_SIZE);
+      $('#logPanel').innerHTML = `
       <div class="log-list">
-        ${works.map((w) => `
+        ${slice.map((w) => `
         <div class="log-item ${w.status === 'error' ? 'err' : ''}">
           ${w.status === 'done' && w.images[0] ? `<img class="log-thumb zoomable" src="${esc(w.images[0])}" loading="lazy" style="cursor:zoom-in" />` : `<div class="log-thumb log-thumb-empty">${w.status === 'error' ? '✕' : '…'}</div>`}
           <div class="log-main">
             <div class="log-top">
               <span class="log-model">${esc(w.model || '')}</span>
               <span class="log-time">${fmtTime(w.createdAt)}</span>
+              <button class="copy-prompt" data-prompt="${esc(w.prompt)}" title="复制完整提示词">复制</button>
             </div>
             <div class="log-prompt" title="${esc(w.prompt)}">${esc(tr(w.prompt, 90))}</div>
             ${w.status === 'error' ? `<div class="log-error">${esc(w.error || '生成失败')}</div>` : ''}
@@ -461,7 +470,33 @@ async function pageLogs() {
             <span class="log-meta">${w.size || ''} · ${w.n || 1} 张 · ${Math.round((w.elapsedMs || 0) / 1000)}s</span>
           </div>
         </div>`).join('')}
-      </div>` : `<div class="empty-tip">还没有生成记录。</div>`;
+      </div>
+      <div class="log-pager">
+        <button class="btn ghost sm" id="pgPrev" ${window._logsPage <= 1 ? 'disabled' : ''}>‹ 上一页</button>
+        <span class="pager-info">第 ${window._logsPage} / ${totalPages} 页 · 共 ${works.length} 条</span>
+        <button class="btn ghost sm" id="pgNext" ${window._logsPage >= totalPages ? 'disabled' : ''}>下一页 ›</button>
+      </div>`;
+      $$('#logPanel .copy-prompt').forEach((b) => b.onclick = async () => {
+        const t = b.dataset.prompt || '';
+        let ok = true;
+        try { await navigator.clipboard.writeText(t); } catch (_) {
+          ok = false;
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select();
+            ok = document.execCommand('copy'); document.body.removeChild(ta);
+          } catch (_) {}
+        }
+        if (ok) {
+          b.classList.add('copied'); b.textContent = '✓ 已复制'; toast('提示词已复制');
+          setTimeout(() => { b.classList.remove('copied'); b.textContent = '复制'; }, 1600);
+        } else toast('复制失败，请长按提示词手动复制');
+      });
+      const prev = $('#pgPrev'), next = $('#pgNext');
+      if (prev) prev.onclick = () => { if (window._logsPage > 1) { window._logsPage--; renderPage(); window.scrollTo({ top: 0, behavior: 'smooth' }); } };
+      if (next) next.onclick = () => { if (window._logsPage < totalPages) { window._logsPage++; renderPage(); window.scrollTo({ top: 0, behavior: 'smooth' }); } };
+    };
+    renderPage();
   } catch (e) {
     $('#logPanel').innerHTML = `<div class="empty-tip">加载失败：${esc(e.message)}</div>`;
   }
