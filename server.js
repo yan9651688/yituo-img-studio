@@ -564,7 +564,7 @@ async function handleApi(req, res, pathname) {
     const b = await readJson(req, 1);
     const username = String(b.username || '').trim();
     const password = String(b.password || '');
-    if (!/^[a-zA-Z0-9_\-\u4e00-\u9fa5]{2,24}$/.test(username)) return sendErr(400, '用户名需 2-24 位中英文、数字、下划线或中划线');
+    if (!/^[a-zA-Z0-9_\-@.\u4e00-\u9fa5]{2,60}$/.test(username)) return sendErr(400, '用户名需 2-60 位，可用中英文、数字、下划线、中划线或邮箱');
     if (password.length < 6 || password.length > 72) return sendErr(400, '密码至少 6 位');
     if (!consumeCaptcha(String(b.captchaId || ''))) return sendErr(400, '滑块验证未通过，请重新完成验证');
     if (db.data.users.some((u) => u.username === username)) return sendErr(400, '用户名已被占用');
