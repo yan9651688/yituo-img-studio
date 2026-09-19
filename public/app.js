@@ -118,7 +118,7 @@ async function pageHome() {
       <p>从一句话、一张参考图开始，慢慢接近你真正想要的画面。</p>
       <button class="btn primary" id="goStudio2">进入工作台 <span class="arr">→</span></button>
     </section>
-    <div class="site-footer">Y Data Img Studio · AI 图像创作工作台 · 由 Y Data 提供<br />首页作品展示经 <a href="https://img.junliai.org/" target="_blank" rel="noopener">Junli Studio</a> 授权同步</div>
+    <div class="site-footer">Y Data Img Studio · AI 图像创作工作台 · 由 Y Data 提供</div>
   </div>`;
   $('#goStudio').onclick = $('#goStudio2').onclick = () => { history.pushState(null, '', '/generate'); nav(); window.scrollTo(0, 0); };
   main.querySelectorAll('.hero-actions .ghost').forEach((a) => a.onclick = (e) => { e.preventDefault(); $('#gallery').scrollIntoView({ behavior: 'smooth' }); });
