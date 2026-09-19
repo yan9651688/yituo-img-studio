@@ -490,7 +490,7 @@ async function handleApi(req, res, pathname) {
     return json(res, 200, { models: MODELS, apiBases: API_BASES, workTtlDays: 7, sizes: [...ALLOWED_SIZES], qualities: [...ALLOWED_QUALITY] });
   }
   if (req.method === 'GET' && pathname === '/api/captcha/new') {
-    if (!rateLimit('cap' + ip, 30, 60e3)) return sendErr(429, '尝试过于频繁，请稍后再试');
+    if (!rateLimit('cap' + ip, 60, 60e3)) return sendErr(429, '尝试过于频繁，请稍后再试');
     const c = newCaptcha();
     return json(res, 200, { id: c.id, bg: c.bg, piece: c.piece, y: c.y, w: CAPTCHA_W, h: CAPTCHA_H, pieceSize: PS });
   }

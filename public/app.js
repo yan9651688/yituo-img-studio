@@ -717,9 +717,10 @@ document.addEventListener('click', (e) => {
 });
 
 /* 滑块验证码逻辑 */
-const sliderState = { id: null, answer: null, passed: false, dragging: false, startX: 0, curX: 0, scale: 1 };
+const DRAG_RATIO = 0.75; // 拖拽阻尼：滑块移动量为手指位移的 75%
+const sliderState = { id: null, answer: null, passed: false, dragging: false, startX: 0, curX: 0, cssDx: 0, scale: 1 };
 async function loadSliderCaptcha() {
-  sliderState.passed = false; sliderState.answer = null;
+  sliderState.passed = false; sliderState.answer = null; sliderState.cssDx = 0;
   const box = $('#sliderBox');
   box.classList.remove('passed', 'shake');
   $('#sliderLoading').style.display = 'flex';
@@ -727,8 +728,13 @@ async function loadSliderCaptcha() {
   const pillEl = $('#sliderPill');
   if (pillEl) { pillEl.textContent = '拖动下方滑块完成拼图'; pillEl.classList.remove('ok'); }
   resetSliderBar();
+  const loadT0 = Date.now();
+  const loadingEl = $('#sliderLoading');
+  loadingEl.innerHTML = '<span class="spinner-sm"></span>';
   try {
     const c = await api('/api/captcha/new');
+    const wait = Math.max(0, 400 - (Date.now() - loadT0));
+    if (wait) await new Promise((r) => setTimeout(r, wait));
     sliderState.id = c.id;
     sliderState.y = c.y;
     const bg = await loadImg('data:image/png;base64,' + c.bg);
@@ -754,7 +760,13 @@ async function loadSliderCaptcha() {
     $('#sliderLoading').innerHTML = '加载失败，点击右上角 ↻ 重试';
   }
 }
-$('#sliderRefresh').onclick = () => { if (!sliderState.passed) loadSliderCaptcha(); };
+$('#sliderRefresh').onclick = () => {
+  if (sliderState.passed) return;
+  const btn = $('#sliderRefresh');
+  btn.style.transform = 'rotate(360deg)';
+  setTimeout(() => { btn.style.transform = ''; }, 350);
+  loadSliderCaptcha();
+};
 function loadImg(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
 function resetSliderBar() {
   $('#sliderThumb').style.left = '4px';
@@ -767,10 +779,13 @@ function initSliderDrag() {
   const bar = $('#sliderBar');
   const maxSlide = Math.max(40, (bar ? bar.clientWidth : 320) - 44); // CSS 像素行程
   const scale = sliderState.scale || 1;
+  const RATIO = DRAG_RATIO;
   const onMove = (e) => {
     if (!sliderState.dragging) return;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    let dx = Math.min(maxSlide, Math.max(0, clientX - sliderState.startX));
+    const finger = clientX - sliderState.startX; // 手指位移（CSS px）
+    const dx = Math.min(maxSlide, Math.max(0, finger * RATIO)); // 滑块位移
+    sliderState.cssDx = dx;
     sliderState.curX = dx / scale; // 换算回 320 宽画布坐标再提交
     piece.style.transform = `translateX(${dx}px)`;
     thumb.style.left = 4 + dx + 'px';
@@ -805,7 +820,7 @@ function initSliderDrag() {
   thumb.onmousedown = thumb.ontouchstart = (e) => {
     if (sliderState.passed) return;
     sliderState.dragging = true;
-    sliderState.startX = (e.touches ? e.touches[0].clientX : e.clientX) - sliderState.curX;
+    sliderState.startX = (e.touches ? e.touches[0].clientX : e.clientX) - (sliderState.cssDx || 0) / DRAG_RATIO;
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
     document.addEventListener('touchmove', onMove, { passive: false });
