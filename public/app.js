@@ -618,24 +618,25 @@ async function pageSettings() {
 
     <div class="panel s-card">
       <div class="s-title">API Key</div>
-      <p class="s-desc">调用生图接口需要的访问密钥，仅保存在站点服务器用于代你请求；生成费用直接从你的 Y Data 账户扣除。<b>C 端与 B 端线路的密钥相互独立，需分别绑定。</b></p>
+      <p class="s-desc">调用生图接口需要的访问密钥，仅保存在站点服务器用于代你请求；生成费用直接从你的 Y Data 账户扣除。${bases.length > 1 ? '<b>C 端与 B 端线路的密钥相互独立，需分别绑定。</b>' : ''}</p>
+      ${bases.length > 1 ? `
       <div class="field"><label>接口线路</label>
         <div class="base-select" id="baseSelect">
           ${bases.map((b) => `
             <button type="button" class="base-opt ${selBase === b ? 'on' : ''}" data-base="${esc(b)}">${esc(b.replace('https://', ''))}<span>${b.includes('vip') ? '企业 B 端' : '个人 C 端'}</span></button>`).join('')}
         </div>
         <div class="base-key-status">${bases.map((b) => { const k = (state.user.keys || {})[b]; return esc(b.replace('https://', '')) + '：' + (k ? '已绑定 <span class="mono">' + esc(k.masked) + '</span>' : '未绑定'); }).join('<span class="dot-sep"> · </span>')}</div>
-      </div>
-      <div class="field"><label>当前线路密钥（${esc(selBase.replace('https://', ''))}）</label>
+      </div>` : ''}
+      <div class="field"><label>${bases.length > 1 ? '当前线路密钥（' + esc(selBase.replace('https://', '')) + '）' : '当前密钥'}</label>
         <div class="current-key ${selKeyInfo ? 'bound' : ''}">${selKeyInfo ? '<span class="mono">' + esc(selKeyInfo.masked) + '</span>' : '未绑定'}</div>
       </div>
-      <div class="field"><label>新密钥（sk- 开头，将保存到 ${esc(selBase.replace('https://', ''))} 线路）</label>
+      <div class="field"><label>${bases.length > 1 ? '新密钥（sk- 开头，将保存到 ' + esc(selBase.replace('https://', '')) + ' 线路）' : '新密钥（sk- 开头）'}</label>
         <div class="redeem-row">
           <input id="apiKeyInput" placeholder="粘贴 sk-... 密钥" autocomplete="off" />
           <button class="btn primary" id="saveKeyBtn">保存密钥</button>
         </div>
       </div>
-      ${selKeyInfo ? `<button class="btn ghost" id="clearKeyBtn">清除 ${esc(selBase.replace('https://', ''))} 线路密钥</button>` : ''}
+      ${selKeyInfo ? `<button class="btn ghost" id="clearKeyBtn">${bases.length > 1 ? '清除 ' + esc(selBase.replace('https://', '')) + ' 线路密钥' : '清除密钥'}</button>` : ''}
       <p class="redeem-tip">没有密钥？去 <a href="${esc(selBase + '/keys')}" target="_blank" rel="noopener">${esc(selBase + '/keys')}</a> 创建（选择生图分组）。401/403 一般是密钥无效、分组不对或线路不匹配——C 端密钥配 www、B 端密钥配 vip。</p>
     </div>
 
@@ -679,12 +680,12 @@ async function pageSettings() {
     if (!key) { toast('先粘贴 sk- 开头的密钥'); return; }
     try {
       await api('/api/auth/apikey', { method: 'POST', body: JSON.stringify({ key, apiBase: window._selectedBase }) });
-      toast('密钥已保存到 ' + window._selectedBase.replace('https://', '') + ' 线路'); await refreshMe(); pageSettings();
+      toast((state.config.apiBases || []).length > 1 ? '密钥已保存到 ' + window._selectedBase.replace('https://', '') + ' 线路' : '密钥已保存'); await refreshMe(); pageSettings();
     } catch (e) { toast(e.message); }
   };
   const clearBtn = $('#clearKeyBtn');
   if (clearBtn) clearBtn.onclick = async () => {
-    if (!confirm('确认清除 ' + window._selectedBase.replace('https://', '') + ' 线路的 API Key？另一条线路的密钥不受影响。')) return;
+    if (!confirm((state.config.apiBases || []).length > 1 ? '确认清除 ' + window._selectedBase.replace('https://', '') + ' 线路的 API Key？另一条线路的密钥不受影响。' : '确认清除已绑定的 API Key？清除后无法生成，需重新绑定。')) return;
     try { await api('/api/auth/apikey', { method: 'POST', body: JSON.stringify({ key: '', apiBase: window._selectedBase }) }); toast('已清除该线路的 API Key'); await refreshMe(); pageSettings(); }
     catch (e) { toast(e.message); }
   };
