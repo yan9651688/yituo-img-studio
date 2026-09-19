@@ -1,5 +1,5 @@
 // Yituo Studio — AI 生图工作台（仅 gpt-image-2 · 仅生图）
-// 零依赖 Node 服务：静态资源 + 注册登录 + 滑块验证码 + 生图代理(api.yituohub.com)
+// 零依赖 Node 服务：静态资源 + 注册登录 + 滑块验证码 + 生图代理(Y Data 双线路)
 'use strict';
 
 const http = require('http');
@@ -346,7 +346,7 @@ function rateLimit(key, max, windowMs) {
   recent.push(t); rateBuckets.set(key, recent); return true;
 }
 
-/* ---------------- 上游调用（api.yituohub.com） ---------------- */
+/* ---------------- 上游调用（Y Data www/vip 双线路） ---------------- */
 const ALLOWED_SIZES = new Set(['auto', '1024x1024', '1536x1024', '1024x1536', '2048x1152', '2048x2048']);
 const ALLOWED_QUALITY = new Set(['auto', 'low', 'medium', 'high']);
 const ALLOWED_FORMAT = new Set(['png', 'jpeg', 'webp']);
@@ -551,7 +551,7 @@ async function handleApi(req, res, pathname) {
   }
   if (!user) return sendErr(401, '请先登录');
 
-  /* 绑定 / 解绑 YituoHub API Key */
+  /* 绑定 / 解绑 Y Data API Key */
   if (req.method === 'POST' && pathname === '/api/auth/apikey') {
     const b = await readJson(req, 1);
     const apiBase = API_BASES.includes(b.apiBase) ? b.apiBase : (user.apiBase || DEFAULT_API_BASE);
