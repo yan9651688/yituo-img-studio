@@ -623,6 +623,21 @@ async function handleApi(req, res, pathname) {
     const list = db.data.works.filter((w) => w.userId === user.id && w.createdAt > cutoff).slice(0, 100).map(publicWork);
     return json(res, 200, { works: list });
   }
+  // 清空当前用户的全部生成记录（日志 + 资产共用数据源），同时删除对应图片文件
+  if (req.method === 'POST' && pathname === '/api/my/works/clear') {
+    if (!rateLimit('clear:' + user.id, 5, 60e3)) return sendErr(429, '操作太频繁，请稍后再试');
+    let removed = 0;
+    db.data.works = db.data.works.filter((w) => {
+      if (w.userId !== user.id) return true;
+      removed++;
+      for (const img of (w.images || [])) {
+        try { fs.unlinkSync(path.join(IMG_DIR, path.basename(img))); } catch (_) {}
+      }
+      return false;
+    });
+    db.save();
+    return json(res, 200, { ok: true, removed });
+  }
   if (req.method === 'POST' && pathname === '/api/generate') {
     const myActive = [...jobs.values()].filter((j) => j.userId === user.id && j.status !== 'done' && j.status !== 'error').length;
     if (myActive >= MAX_CONCURRENT_PER_USER) return sendErr(429, `同一时刻最多 ${MAX_CONCURRENT_PER_USER} 个任务，请稍候`);
