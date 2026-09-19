@@ -6,8 +6,8 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const main = $('#main');
 
 /* ---------------- 状态 ---------------- */
-const keysUrl = () => (state.user && state.user.apiBase ? state.user.apiBase : (state.config.apiBases || ['https://www.ydata.space'])[0]) + '/keys';
-const state = { user: null, lastResult: null, config: { models: ['gpt-image-2'], apiBases: ['https://www.ydata.space', 'https://vip.ydata.space'], workTtlDays: 7, sizes: [], qualities: [] } };
+const keysUrl = () => (state.user && state.user.apiBase ? state.user.apiBase : (state.config.apiBases || ['https://www.cheaptoken.org'])[0]) + '/keys';
+const state = { user: null, lastResult: null, config: { models: ['gpt-image-2'], apiBases: ['https://www.cheaptoken.org'], workTtlDays: 7, sizes: [], qualities: [] } };
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', cache: 'no-cache', ...opts });
@@ -73,11 +73,11 @@ async function pageHome() {
   main.innerHTML = `
   <div class="page">
     <div class="rings"></div>
-    <div class="page-head"><span class="brand-name">Y Data Img Studio</span><span class="brand-badge">AI 生图工作台</span></div>
+    <div class="page-head"><span class="brand-name">CheapToken Img Studio</span><span class="brand-badge">AI 生图工作台</span></div>
     <section class="hero">
       <div>
         <h1>让想象，<br /><span class="grad">抵达眼前。</span></h1>
-        <p class="lead">写下一句话，把脑海里的光影、人物与故事，认真画成一张图。绑定你的 Y Data 密钥即可使用，支持参考图改图、任意尺寸与透明背景。</p>
+        <p class="lead">写下一句话，把脑海里的光影、人物与故事，认真画成一张图。绑定你的 CheapToken 密钥即可使用，支持参考图改图、任意尺寸与透明背景。</p>
         <div class="hero-actions">
           <button class="btn primary" id="goStudio">开始创作 <span class="arr">→</span></button>
           <a class="btn ghost" href="#gallery">浏览灵感 ↓</a>
@@ -105,7 +105,7 @@ async function pageHome() {
 
     <section class="section">
       <h2>模型 · 已接入</h2>
-      <p class="sub">三款模型经由 Y Data 平台双线路供能 · 支持文生图与参考图改图。</p>
+      <p class="sub">三款模型经由 CheapToken 平台供能 · 支持文生图与参考图改图。</p>
       <div class="models">
         <div class="model-chip"><div class="m-dot">G</div><div><b>gpt-image-2</b><br /><span>文生图 · 参考图改图 · 透明背景</span></div></div>
         <div class="model-chip"><div class="m-dot">F</div><div><b>gpt-image-2.5-flare</b><br /><span>2.5 系列 · 炫光渲染</span></div></div>
@@ -118,7 +118,7 @@ async function pageHome() {
       <p>从一句话、一张参考图开始，慢慢接近你真正想要的画面。</p>
       <button class="btn primary" id="goStudio2">进入工作台 <span class="arr">→</span></button>
     </section>
-    <div class="site-footer">Y Data Img Studio · AI 图像创作工作台 · 由 Y Data 提供</div>
+    <div class="site-footer">CheapToken Img Studio · AI 图像创作工作台 · 由 CheapToken 提供</div>
   </div>`;
   $('#goStudio').onclick = $('#goStudio2').onclick = () => { history.pushState(null, '', '/generate'); nav(); window.scrollTo(0, 0); };
   main.querySelectorAll('.hero-actions .ghost').forEach((a) => a.onclick = (e) => { e.preventDefault(); $('#gallery').scrollIntoView({ behavior: 'smooth' }); });
@@ -209,7 +209,7 @@ async function pageStudio() {
           <div class="gen-cost">⚠️ 图片仅保留 ${state.config.workTtlDays || 7} 天，到期自动删除，请及时下载</div>
           ${state.user && !state.user.hasKey ? `
           <div class="key-banner">
-            🔑 还未绑定 Y Data API 密钥，无法生成。
+            🔑 还未绑定 CheapToken API 密钥，无法生成。
             <a href="/settings" data-nav="/settings">去设置绑定 →</a>
           </div>` : ''}
         </div>
@@ -248,7 +248,7 @@ async function pageStudio() {
   };
   const cost = () => {
     $('#genCost').textContent = state.user
-      ? (state.user.hasKey ? `本次 ${Number($('#count').value)} 张 · 费用直接从你的 Y Data 账户扣除` : '绑定密钥后即可生成')
+      ? (state.user.hasKey ? `本次 ${Number($('#count').value)} 张 · 费用直接从你的 CheapToken 账户扣除` : '绑定密钥后即可生成')
       : '登录并绑定密钥后即可生成';
   };
   cost();
@@ -384,7 +384,7 @@ async function pollJob(jobId, area, t0) {
       return;
     }
     if (d.status === 'error') {
-      area.innerHTML = `<div class="gen-err">⚠️ ${esc(d.error || '生成失败')}<br /><small style="opacity:.75">失败不扣费；请核对密钥有效性与 Y Data 余额后重试</small></div>`;
+      area.innerHTML = `<div class="gen-err">⚠️ ${esc(d.error || '生成失败')}<br /><small style="opacity:.75">失败不扣费；请核对密钥有效性与 CheapToken 余额后重试</small></div>`;
       return;
     }
   }
@@ -474,18 +474,17 @@ function pageDocs() {
 
     <div class="panel doc-body">
       <p class="doc-kicker">01 · 准备密钥</p>
-      <h3>选择线路并获取 Y Data API 密钥</h3>
-      <p>本站是 <b>Y Data</b> 平台的附属生图站点，支持两条线路，<b>均可使用全部生图模型</b>：生成费用直接从你的 Y Data 账户余额扣除，本站不收任何中间费用。</p>
+      <h3>获取 CheapToken API 密钥</h3>
+      <p>本站是 <b>CheapToken</b> 平台的附属生图站点：生成费用直接从你的 CheapToken 账户余额扣除，本站不收任何中间费用。</p>
       <div class="doc-lines">
-        <div class="doc-line"><b>www.ydata.space</b><span>个人版（C 端）· 面向个人创作者，注册即用</span><a href="https://www.ydata.space/keys" target="_blank" rel="noopener">获取密钥 ↗</a></div>
-        <div class="doc-line"><b>vip.ydata.space</b><span>企业版（B 端）· 面向企业与商用场景，批量更优</span><a href="https://vip.ydata.space/keys" target="_blank" rel="noopener">获取密钥 ↗</a></div>
+        <div class="doc-line"><b>www.cheaptoken.org</b><span>AI API Gateway · 注册即用，支持全部生图模型</span><a href="https://www.cheaptoken.org/keys" target="_blank" rel="noopener">获取密钥 ↗</a></div>
       </div>
       <ol class="doc-steps">
-        <li>打开所属线路的密钥页（需先注册 / 登录该线路的 Y Data 账号）</li>
+        <li>打开密钥页（需先注册 / 登录 CheapToken 账号）</li>
         <li>点击「新建密钥」，<b>分组务必选择生图分组</b>（如 gpt-image-2 分组）</li>
         <li>复制以 <code>sk-</code> 开头的密钥，妥善保存——密钥只完整显示一次</li>
       </ol>
-      <div class="doc-note">两条线路的<b>账号与密钥相互独立</b>：在设置页绑定哪条线路，就要使用那条线路的密钥。余额不足或分组不对时生成会失败并提示 401/403，去对应线路的后台充值或换分组即可。</div>
+      <div class="doc-note">余额不足或分组不对时生成会失败并提示 401/403，去 CheapToken 后台充值或换分组即可。</div>
 
       <p class="doc-kicker">02 · 绑定</p>
       <h3>在本站绑定密钥</h3>
@@ -514,7 +513,7 @@ function pageDocs() {
       <p class="doc-kicker">05 · 常见问题</p>
       <h3>FAQ</h3>
       <dl class="doc-faq">
-        <dt>生成失败提示 401 / 403？</dt><dd>密钥无效、分组不对或 Y Data 余额不足。去 Y Data 后台核对后，在「设置」页更新密钥。</dd>
+        <dt>生成失败提示 401 / 403？</dt><dd>密钥无效、分组不对或 CheapToken 余额不足。去 CheapToken 后台核对后，在「设置」页更新密钥。</dd>
         <dt>提示"请先绑定 API 密钥"？</dt><dd>先到「设置」页完成密钥绑定（见上文 02）。</dd>
         <dt>改图后人物变样了？</dt><dd>描述里强调「严格保持人物长相、发型、服装不变」，或降低改动幅度。</dd>
         <dt>能一次生成多张吗？</dt><dd>可以，数量选 1–4 张；并发任务最多 2 个，排队请稍候。</dd>
@@ -526,14 +525,14 @@ function pageDocs() {
 function pageAbout() {
   main.innerHTML = `
   <div class="page">
-    <div class="page-head"><span class="brand-name">关于</span><span class="brand-badge">Y Data Img Studio</span></div>
+    <div class="page-head"><span class="brand-name">关于</span><span class="brand-badge">CheapToken Img Studio</span></div>
     <div class="panel about-page">
-      <h3 class="about-name"><img src="/assets/logo.png?v=2" alt="Y" /> Y Data Img Studio</h3>
-      <p class="about-line">是 <a href="https://www.ydata.space" target="_blank" rel="noopener">Y Data</a> 的附属 AI 生图工作台。</p>
-      <p class="about-line">绑定你的 Y Data 密钥即可使用 ${state.config.models.length} 款生图模型。</p>
-      <p class="about-line">支持 www（个人 C 端）与 vip（企业 B 端）双线路，均可生图。</p>
-      <p class="about-line">生成费用直连你的 Y Data 账户，本站不加价。</p>
-      <p class="about-line">生成服务由 Y Data 平台提供。</p>
+      <h3 class="about-name"><img src="/assets/logo.png?v=2" alt="Y" /> CheapToken Img Studio</h3>
+      <p class="about-line">是 <a href="https://www.cheaptoken.org" target="_blank" rel="noopener">CheapToken</a> 的附属 AI 生图工作台。</p>
+      <p class="about-line">绑定你的 CheapToken 密钥即可使用 ${state.config.models.length} 款生图模型。</p>
+      <p class="about-line">生成接口由 www.cheaptoken.org 官方网关提供。</p>
+      <p class="about-line">生成费用直连你的 CheapToken 账户，本站不加价。</p>
+      <p class="about-line">生成服务由 CheapToken 平台提供。</p>
       <p class="about-line warn">⚠️ 生成的图片在本站仅保留 ${state.config.workTtlDays || 7} 天，请及时下载。</p>
       <p class="about-line muted">提示：请勿生成违反法律法规与平台政策的内容。</p>
     </div>
@@ -563,7 +562,7 @@ async function pageSettings() {
     return;
   }
   // 选中的线路及其密钥槽位（C 端 / B 端各自独立）
-  const bases = state.config.apiBases || ['https://www.ydata.space'];
+  const bases = state.config.apiBases || ['https://www.cheaptoken.org'];
   const selBase = bases.includes(window._selectedBase) ? window._selectedBase : (state.user.apiBase || bases[0]);
   const selKeyInfo = (state.user.keys || {})[selBase] || null;
   main.innerHTML = `
@@ -583,25 +582,26 @@ async function pageSettings() {
 
     <div class="panel s-card">
       <div class="s-title">API Key</div>
-      <p class="s-desc">调用生图接口需要的访问密钥，仅保存在站点服务器用于代你请求；生成费用直接从你的 Y Data 账户扣除。<b>C 端与 B 端线路的密钥相互独立，需分别绑定。</b></p>
+      <p class="s-desc">调用生图接口需要的访问密钥，仅保存在站点服务器用于代你请求；生成费用直接从你的 CheapToken 账户扣除。${bases.length > 1 ? '<b>C 端与 B 端线路的密钥相互独立，需分别绑定。</b>' : ''}</p>
+      ${bases.length > 1 ? `
       <div class="field"><label>接口线路</label>
         <div class="base-select" id="baseSelect">
           ${bases.map((b) => `
             <button type="button" class="base-opt ${selBase === b ? 'on' : ''}" data-base="${esc(b)}">${esc(b.replace('https://', ''))}<span>${b.includes('vip') ? '企业 B 端' : '个人 C 端'}</span></button>`).join('')}
         </div>
         <div class="base-key-status">${bases.map((b) => { const k = (state.user.keys || {})[b]; return esc(b.replace('https://', '')) + '：' + (k ? '已绑定 <span class="mono">' + esc(k.masked) + '</span>' : '未绑定'); }).join('<span class="dot-sep"> · </span>')}</div>
-      </div>
-      <div class="field"><label>当前线路密钥（${esc(selBase.replace('https://', ''))}）</label>
+      </div>` : ''}
+      <div class="field"><label>${bases.length > 1 ? '当前线路密钥（' + esc(selBase.replace('https://', '')) + '）' : '当前密钥'}</label>
         <div class="current-key ${selKeyInfo ? 'bound' : ''}">${selKeyInfo ? '<span class="mono">' + esc(selKeyInfo.masked) + '</span>' : '未绑定'}</div>
       </div>
-      <div class="field"><label>新密钥（sk- 开头，将保存到 ${esc(selBase.replace('https://', ''))} 线路）</label>
+      <div class="field"><label>${bases.length > 1 ? '新密钥（sk- 开头，将保存到 ' + esc(selBase.replace('https://', '')) + ' 线路）' : '新密钥（sk- 开头）'}</label>
         <div class="redeem-row">
           <input id="apiKeyInput" placeholder="粘贴 sk-... 密钥" autocomplete="off" />
           <button class="btn primary" id="saveKeyBtn">保存密钥</button>
         </div>
       </div>
-      ${selKeyInfo ? `<button class="btn ghost" id="clearKeyBtn">清除 ${esc(selBase.replace('https://', ''))} 线路密钥</button>` : ''}
-      <p class="redeem-tip">没有密钥？去 <a href="${esc(selBase + '/keys')}" target="_blank" rel="noopener">${esc(selBase + '/keys')}</a> 创建（选择生图分组）。401/403 一般是密钥无效、分组不对或线路不匹配——C 端密钥配 www、B 端密钥配 vip。</p>
+      ${selKeyInfo ? `<button class="btn ghost" id="clearKeyBtn">${bases.length > 1 ? '清除 ' + esc(selBase.replace('https://', '')) + ' 线路密钥' : '清除密钥'}</button>` : ''}
+      <p class="redeem-tip">没有密钥？去 <a href="${esc(selBase + '/keys')}" target="_blank" rel="noopener">${esc(selBase + '/keys')}</a> 创建（选择生图分组）。401/403 一般是密钥无效、分组不对或余额不足。</p>
     </div>
 
     <div class="panel s-card">
@@ -644,12 +644,12 @@ async function pageSettings() {
     if (!key) { toast('先粘贴 sk- 开头的密钥'); return; }
     try {
       await api('/api/auth/apikey', { method: 'POST', body: JSON.stringify({ key, apiBase: window._selectedBase }) });
-      toast('密钥已保存到 ' + window._selectedBase.replace('https://', '') + ' 线路'); await refreshMe(); pageSettings();
+      toast((state.config.apiBases || []).length > 1 ? '密钥已保存到 ' + window._selectedBase.replace('https://', '') + ' 线路' : '密钥已保存'); await refreshMe(); pageSettings();
     } catch (e) { toast(e.message); }
   };
   const clearBtn = $('#clearKeyBtn');
   if (clearBtn) clearBtn.onclick = async () => {
-    if (!confirm('确认清除 ' + window._selectedBase.replace('https://', '') + ' 线路的 API Key？另一条线路的密钥不受影响。')) return;
+    if (!confirm((state.config.apiBases || []).length > 1 ? '确认清除 ' + window._selectedBase.replace('https://', '') + ' 线路的 API Key？另一条线路的密钥不受影响。' : '确认清除已绑定的 API Key？清除后无法生成，需重新绑定。')) return;
     try { await api('/api/auth/apikey', { method: 'POST', body: JSON.stringify({ key: '', apiBase: window._selectedBase }) }); toast('已清除该线路的 API Key'); await refreshMe(); pageSettings(); }
     catch (e) { toast(e.message); }
   };

@@ -36,6 +36,7 @@ function decodePNG(buf) {
   // 1. 配置
   let r = await api('/api/config');
   assert(r.status === 200 && Array.isArray(r.data.models) && r.data.models.length === 3, 'config 返回 3 个模型');
+  const cfgBases = (r.data.apiBases || []).slice();
 
   // 2. 滑块验证码：找深靛色缺口（照片压暗 + 靛蓝偏色），46px 窗口密度最高处
   r = await api('/api/captcha/new');
@@ -85,7 +86,7 @@ function decodePNG(buf) {
   // 6. 绑定测试密钥（环境变量 TEST_API_KEY）
   const testKey = process.env.TEST_API_KEY || process.env.UPSTREAM_KEY || '';
   assert(!!testKey, 'TEST_API_KEY 环境变量存在');
-  r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ key: testKey, apiBase: process.env.TEST_API_BASE }) });
+  r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ key: testKey, apiBase: cfgBases.includes(process.env.TEST_API_BASE) ? process.env.TEST_API_BASE : cfgBases[0] }) });
   assert(r.status === 200 && r.data.user.hasKey === true && r.data.user.maskedKey, '密钥绑定成功（脱敏返回）');
   r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ key: 'bad-format' }) });
   assert(r.status === 400, '非法密钥格式被拒绝');
@@ -106,24 +107,27 @@ function decodePNG(buf) {
   const imgBuf = Buffer.from(await imgRes.arrayBuffer());
   assert(imgRes.status === 200 && imgBuf[0] === 0x89 && imgBuf[1] === 0x50, '图片可访问且为 PNG');
 
-  // 8. 双线路独立密钥：切到另一线路后原密钥不跟随，生成被拒；绑另一密钥后两线路各自独立
-  const otherBase = process.env.TEST_API_BASE === 'https://vip.ydata.space' ? 'https://www.ydata.space' : 'https://vip.ydata.space';
-  r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ apiBase: otherBase }) });
-  assert(r.status === 200 && r.data.user.apiBase === otherBase, '线路切换成功');
-  assert(r.data.user.hasKey === false && r.data.user.keys[otherBase].bound === false, '新线路密钥槽位为空（密钥不跨线路跟随）');
-  assert(r.data.user.keys[process.env.TEST_API_BASE].bound === true, '原线路密钥槽位仍保留');
-  r = await api('/api/generate', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ prompt: 'x' }) });
-  assert(r.status === 403, '未给当前线路绑定密钥时生成被拒绝');
-  r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ apiBase: 'https://evil.example.com' }) });
-  assert(r.status === 200 && r.data.user.apiBase === otherBase, '非法线路被白名单拒绝');
-  // 给另一线路也绑上密钥（如有对应环境变量），验证两个槽位互不覆盖
-  const otherKey = process.env.TEST_API_KEY_OTHER || '';
-  if (otherKey) {
-    r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ key: otherKey, apiBase: otherBase }) });
-    assert(r.status === 200 && r.data.user.keys[otherBase].bound === true && r.data.user.keys[process.env.TEST_API_BASE].bound === true, '两条线路各自持有独立密钥');
+  // 8. 双线路独立密钥：切到另一线路后原密钥不跟随，生成被拒；绑另一密钥后两线路各自独立（单线路部署跳过）
+  const myBase = cfgBases.includes(process.env.TEST_API_BASE) ? process.env.TEST_API_BASE : cfgBases[0];
+  const otherBase = cfgBases.find((b) => b !== myBase);
+  if (otherBase) {
+    r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ apiBase: otherBase }) });
+    assert(r.status === 200 && r.data.user.apiBase === otherBase, '线路切换成功');
+    assert(r.data.user.hasKey === false && r.data.user.keys[otherBase].bound === false, '新线路密钥槽位为空（密钥不跨线路跟随）');
+    assert(r.data.user.keys[myBase].bound === true, '原线路密钥槽位仍保留');
+    r = await api('/api/generate', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ prompt: 'x' }) });
+    assert(r.status === 403, '未给当前线路绑定密钥时生成被拒绝');
+    r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ apiBase: 'https://evil.example.com' }) });
+    assert(r.status === 200 && r.data.user.apiBase === otherBase, '非法线路被白名单拒绝');
+    // 给另一线路也绑上密钥（如有对应环境变量），验证两个槽位互不覆盖
+    const otherKey = process.env.TEST_API_KEY_OTHER || '';
+    if (otherKey) {
+      r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ key: otherKey, apiBase: otherBase }) });
+      assert(r.status === 200 && r.data.user.keys[otherBase].bound === true && r.data.user.keys[myBase].bound === true, '两条线路各自持有独立密钥');
+    }
+    r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ apiBase: myBase }) });
+    assert(r.status === 200 && r.data.user.hasKey === true, '切回原线路后密钥立即可用');
   }
-  r = await api('/api/auth/apikey', { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ apiBase: process.env.TEST_API_BASE }) });
-  assert(r.status === 200 && r.data.user.hasKey === true, '切回原线路后密钥立即可用');
 
   // 9. 日志含成功记录
   r = await api('/api/my/works', { headers: { Cookie: cookie } });
