@@ -428,6 +428,12 @@ html:not(.dark) .slider-bar { background: #3a345c; }
 }
 .copy-prompt:hover { color: var(--ink); border-color: var(--ink-3); }
 .copy-prompt.copied { color: #1a9c6b; border-color: #1a9c6b; }
+.del-log {
+  border: 1px solid var(--line); background: transparent; color: var(--ink-3);
+  border-radius: 8px; font-size: 11px; padding: 2px 9px; cursor: pointer;
+  transition: all 0.15s; flex-shrink: 0; line-height: 1.5;
+}
+.del-log:hover { color: #e05545; border-color: rgba(240, 80, 90, 0.5); }
 .log-pager {
   display: flex; align-items: center; justify-content: center; gap: 14px;
   padding: 14px 0 4px; margin-top: 8px; border-top: 1px dashed var(--line);
