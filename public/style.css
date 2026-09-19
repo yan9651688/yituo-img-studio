@@ -434,6 +434,13 @@ html:not(.dark) .slider-bar { background: #3a345c; }
   transition: all 0.15s; flex-shrink: 0; line-height: 1.5;
 }
 .del-log:hover { color: #e05545; border-color: rgba(240, 80, 90, 0.5); }
+.log-batch {
+  display: flex; align-items: center; gap: 14px;
+  padding: 2px 4px 12px;
+}
+.log-batch .batch-all { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); cursor: pointer; user-select: none; }
+.batch-info { font-size: 12px; color: var(--ink-3); }
+.log-check { width: 16px; height: 16px; accent-color: var(--brand); flex-shrink: 0; cursor: pointer; }
 .log-pager {
   display: flex; align-items: center; justify-content: center; gap: 14px;
   padding: 14px 0 4px; margin-top: 8px; border-top: 1px dashed var(--line);

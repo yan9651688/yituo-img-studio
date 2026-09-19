@@ -653,6 +653,27 @@ async function handleApi(req, res, pathname) {
     db.save();
     return json(res, 200, { ok: true });
   }
+  // 批量删除生成记录（含对应图片）
+  if (req.method === 'POST' && pathname === '/api/my/works/delete-batch') {
+    if (!rateLimit('delw:' + user.id, 20, 60e3)) return sendErr(429, '操作太频繁，请稍后再试');
+    const b = await readJson(req, 1);
+    const ids = Array.isArray(b.ids) ? [...new Set(b.ids.map(Number).filter(Number.isInteger))].slice(0, 100) : [];
+    if (!ids.length) return sendErr(400, '参数错误');
+    const idSet = new Set(ids);
+    let removed = 0;
+    db.data.works = db.data.works.filter((w) => {
+      if (idSet.has(w.id) && w.userId === user.id) {
+        removed++;
+        for (const img of (w.images || [])) {
+          try { fs.unlinkSync(path.join(IMG_DIR, path.basename(img))); } catch (_) {}
+        }
+        return false;
+      }
+      return true;
+    });
+    db.save();
+    return json(res, 200, { ok: true, removed });
+  }
   if (req.method === 'POST' && pathname === '/api/generate') {
     const myActive = [...jobs.values()].filter((j) => j.userId === user.id && j.status !== 'done' && j.status !== 'error').length;
     if (myActive >= MAX_CONCURRENT_PER_USER) return sendErr(429, `同一时刻最多 ${MAX_CONCURRENT_PER_USER} 个任务，请稍候`);
