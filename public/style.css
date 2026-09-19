@@ -394,6 +394,14 @@ html:not(.dark) .slider-bar { background: #3a345c; }
 .doc-steps li { margin: 7px 0; line-height: 1.9; }
 .doc-steps-4 li { margin: 12px 0; font-size: 14.5px; }
 .result-label { font-size: 12px; color: var(--ink-3); letter-spacing: 1px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
+.doc-lines { display: flex; flex-direction: column; gap: 10px; margin: 12px 0 16px; }
+.doc-line {
+  display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-radius: 14px;
+  border: 1.5px solid var(--line); background: var(--card); font-size: 14px; flex-wrap: wrap;
+}
+.doc-line b { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.doc-line span { font-size: 12.5px; color: var(--ink-2); flex: 1; min-width: 140px; }
+.doc-line a { color: var(--brand); font-weight: 700; font-size: 13px; white-space: nowrap; }
 .doc-note { padding: 11px 15px; border-radius: 12px; font-size: 12.5px; color: var(--ink-2); background: rgba(124, 92, 240, 0.07); border-left: 3px solid var(--brand); margin: 8px 0 4px; line-height: 1.8; }
 .doc-faq dt { font-weight: 700; margin-top: 14px; }
 .doc-faq dd { margin: 4px 0 0 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.8; }

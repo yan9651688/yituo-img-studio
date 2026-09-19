@@ -468,14 +468,18 @@ function pageDocs() {
 
     <div class="panel doc-body">
       <p class="doc-kicker">01 · 准备密钥</p>
-      <h3>获取 Y Data API 密钥</h3>
-      <p>本站是 <b>Y Data</b> 平台的附属生图站点，支持 www / vip 双线路：生成费用直接从你的 Y Data 账户余额扣除，本站不收任何中间费用。</p>
+      <h3>选择线路并获取 Y Data API 密钥</h3>
+      <p>本站是 <b>Y Data</b> 平台的附属生图站点，支持两条线路，<b>均可使用全部生图模型</b>：生成费用直接从你的 Y Data 账户余额扣除，本站不收任何中间费用。</p>
+      <div class="doc-lines">
+        <div class="doc-line"><b>www.ydata.space</b><span>个人版（C 端）· 面向个人创作者，注册即用</span><a href="https://www.ydata.space/keys" target="_blank" rel="noopener">获取密钥 ↗</a></div>
+        <div class="doc-line"><b>vip.ydata.space</b><span>企业版（B 端）· 面向企业与商用场景，批量更优</span><a href="https://vip.ydata.space/keys" target="_blank" rel="noopener">获取密钥 ↗</a></div>
+      </div>
       <ol class="doc-steps">
-        <li>打开 <a href="${esc(keyUrl)}" target="_blank" rel="noopener">${esc(keyUrl)}</a>（需先注册 / 登录 Y Data）</li>
+        <li>打开所属线路的密钥页（需先注册 / 登录该线路的 Y Data 账号）</li>
         <li>点击「新建密钥」，<b>分组务必选择生图分组</b>（如 gpt-image-2 分组）</li>
         <li>复制以 <code>sk-</code> 开头的密钥，妥善保存——密钥只完整显示一次</li>
       </ol>
-      <div class="doc-note">余额不足或分组不对时生成会失败并提示 401/403，去 Y Data 后台充值或换分组即可。</div>
+      <div class="doc-note">两条线路的<b>账号与密钥相互独立</b>：在设置页绑定哪条线路，就要使用那条线路的密钥。余额不足或分组不对时生成会失败并提示 401/403，去对应线路的后台充值或换分组即可。</div>
 
       <p class="doc-kicker">02 · 绑定</p>
       <h3>在本站绑定密钥</h3>
@@ -568,7 +572,7 @@ async function pageSettings() {
       <div class="field"><label>接口线路</label>
         <div class="base-select" id="baseSelect">
           ${(state.config.apiBases || []).map((b) => `
-            <button type="button" class="base-opt ${((state.user.apiBase || (state.config.apiBases || ['https://www.ydata.space'])[0]) === b) ? 'on' : ''}" data-base="${esc(b)}">${esc(b.replace('https://', ''))}<span>${b.includes('vip') ? 'VIP 专线' : '标准线路'}</span></button>`).join('')}
+            <button type="button" class="base-opt ${((state.user.apiBase || (state.config.apiBases || ['https://www.ydata.space'])[0]) === b) ? 'on' : ''}" data-base="${esc(b)}">${esc(b.replace('https://', ''))}<span>${b.includes('vip') ? '企业 B 端' : '个人 C 端'}</span></button>`).join('')}
         </div>
       </div>
       <div class="field"><label>当前密钥</label>
