@@ -25,8 +25,8 @@ fs.mkdirSync(IMG_DIR, { recursive: true });
 const SHOWCASE_DIR = path.join(DATA_DIR, 'showcase');
 fs.mkdirSync(SHOWCASE_DIR, { recursive: true });
 
-/* ---------------- 首页作品同步（经 Junli Studio 授权） ---------------- */
-const SHOWCASE_URL = process.env.SHOWCASE_URL || 'https://img.junliai.org/admin/api/showcase';
+/* ---------------- 首页画廊同步（地址经环境变量 SHOWCASE_URL 配置；未配置则只用本地缓存不外拉） ---------------- */
+const SHOWCASE_URL = process.env.SHOWCASE_URL || '';
 const SHOWCASE_JSON = path.join(DATA_DIR, 'showcase.json');
 const SHOWCASE_TTL = 6 * 3600e3;
 // 作品墙人工撰写的高精度提示词（上游数据不带 prompt，按键为本地图片文件名；上游若补了 prompt 则以上游为准）
@@ -57,6 +57,7 @@ function httpsGet(url, headers = {}) {
 }
 
 async function syncShowcase() {
+  if (!SHOWCASE_URL) return; // 未配置同步源：只用本地缓存
   try {
     const res = await httpsGet(SHOWCASE_URL, { 'User-Agent': 'yituo-studio-sync/1.0' });
     if (res.status !== 200) throw new Error('showcase http ' + res.status);
