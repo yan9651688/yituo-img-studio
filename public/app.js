@@ -473,6 +473,7 @@ async function pageLogs() {
               <span class="log-model">${esc(w.model || '')}</span>
               <span class="log-time">${fmtTime(w.createdAt)}</span>
               <button class="copy-prompt" data-prompt="${esc(w.prompt)}" title="复制完整提示词">复制</button>
+              <button class="del-log" data-id="${w.id}" title="删除这条记录">删除</button>
             </div>
             <div class="log-prompt" title="${esc(w.prompt)}">${esc(tr(w.prompt, 90))}</div>
             ${w.status === 'error' ? `<div class="log-error">${esc(w.error || '生成失败')}</div>` : ''}
@@ -503,6 +504,14 @@ async function pageLogs() {
           b.classList.add('copied'); b.textContent = '✓ 已复制'; toast('提示词已复制');
           setTimeout(() => { b.classList.remove('copied'); b.textContent = '复制'; }, 1600);
         } else toast('复制失败，请长按提示词手动复制');
+      });
+      $$('#logPanel .del-log').forEach((b) => b.onclick = async () => {
+        if (!confirm('删除这条记录？对应的生成图片会一并删除，不可恢复。')) return;
+        try {
+          await api('/api/my/works/delete', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.id) }) });
+          toast('已删除该记录');
+          pageLogs(); // 重新拉取并渲染（分页会自动收敛）
+        } catch (e) { toast(e.message); }
       });
       const prev = $('#pgPrev'), next = $('#pgNext');
       if (prev) prev.onclick = () => { if (window._logsPage > 1) { window._logsPage--; renderPage(); window.scrollTo({ top: 0, behavior: 'smooth' }); } };
