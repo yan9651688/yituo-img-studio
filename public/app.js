@@ -632,7 +632,7 @@ function pageAbout() {
   </div>`;
 }
 
-/* ---------------- 设置（仿 Junli Studio 版式：账号 / API Key / 修改密码 / 退出登录） ---------------- */
+/* ---------------- 设置（账号 / API Key / 修改密码 / 退出登录） ---------------- */
 async function pageSettings() {
   if (!state.user) {
     // 未登录：同版式引导卡，点击打开登录弹窗（含注册滑块验证）

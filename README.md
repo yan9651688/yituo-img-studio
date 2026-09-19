@@ -65,5 +65,5 @@ TEST_API_KEY=sk-xxx node test/e2e.js http://127.0.0.1:8100
 
 ## 说明
 
-- 首页作品展示经 [Junli Studio](https://img.junliai.org/) 授权同步（服务端每 6 小时拉取并本地化图片）
+- 首页画廊支持从外部源定时同步并本地化图片（地址经 `SHOWCASE_URL` 环境变量配置，不配置则用本地缓存）
 - 用户 API 密钥仅存储在站点服务器用于代用户调用生成接口
